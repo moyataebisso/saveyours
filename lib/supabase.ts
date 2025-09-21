@@ -1,149 +1,190 @@
-interface MockSession {
-  id: string;
-  class_id: string;
-  date: string;
-  start_time: string;
-  end_time: string;
-  location: string;
-  max_capacity: number;
-  current_enrollment: number;
-  status: string;
-  class: {
-    id: string;
-    name: string;
-    type: string;
-    audience: string;
-    price: number;
-    duration_online: number;
-    duration_skills: number;
-    description: string;
-  };
-}
+import { createClient } from '@supabase/supabase-js'
+import type { 
+  ClassSession, 
+  ClassSessionWithClass, 
+  EnrollmentData, 
+  InquiryData, 
+  SessionData, 
+  Enrollment 
+} from '@/types'
 
-interface InquiryData {
-  name: string;
-  email: string;
-  phone?: string;
-  service_type?: string;
-  location?: string;
-  participants?: number;
-  preferred_dates?: string;
-  message: string;
-}
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-export const createClientBrowser = () => {
-  return {
-    from: (table: string) => ({
-      select: () => Promise.resolve({ data: getMockData(table), error: null }),
-      insert: () => Promise.resolve({ data: {}, error: null }),
-      delete: () => Promise.resolve({ error: null }),
-    })
-  };
-};
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-export const createClientServer = () => createClientBrowser();
-
-const getMockData = (table: string): MockSession[] => {
-  if (table === 'class_sessions') {
-    return [
-      {
-        id: '1',
-        class_id: 'class-1',
-        date: '2025-09-20',
-        start_time: '09:00 AM',
-        end_time: '12:00 PM',
-        location: '5450 W 41st St, Minneapolis, MN 55416',
-        max_capacity: 12,
-        current_enrollment: 5,
-        status: 'open',
-        class: {
-          id: 'class-1',
-          name: 'Basic Life Support-BL r.21',
-          type: 'BLS',
-          audience: 'healthcare',
-          price: 75,
-          duration_online: 120,
-          duration_skills: 60,
-          description: 'BLS certification for healthcare providers'
-        }
-      },
-      {
-        id: '2',
-        class_id: 'class-2',
-        date: '2025-09-25',
-        start_time: '01:00 PM',
-        end_time: '04:00 PM',
-        location: '5450 W 41st St, Minneapolis, MN 55416',
-        max_capacity: 12,
-        current_enrollment: 3,
-        status: 'open',
-        class: {
-          id: 'class-2',
-          name: 'Adult and Pediatric First Aid/CPR/AED-BL-r.21',
-          type: 'CPR/AED',
-          audience: 'general',
-          price: 95,
-          duration_online: 120,
-          duration_skills: 60,
-          description: 'CPR and AED training for non-healthcare workers'
-        }
-      },
-      {
-        id: '3',
-        class_id: 'class-1',
-        date: '2025-10-02',
-        start_time: '09:00 AM',
-        end_time: '12:00 PM',
-        location: '5450 W 41st St, Minneapolis, MN 55416',
-        max_capacity: 12,
-        current_enrollment: 8,
-        status: 'open',
-        class: {
-          id: 'class-1',
-          name: 'Basic Life Support-BL r.21',
-          type: 'BLS',
-          audience: 'healthcare',
-          price: 75,
-          duration_online: 120,
-          duration_skills: 60,
-          description: 'BLS certification for healthcare providers'
-        }
-      },
-      {
-        id: '4',
-        class_id: 'class-2',
-        date: '2025-10-05',
-        start_time: '10:00 AM',
-        end_time: '01:00 PM',
-        location: '5450 W 41st St, Minneapolis, MN 55416',
-        max_capacity: 12,
-        current_enrollment: 12,
-        status: 'full',
-        class: {
-          id: 'class-2',
-          name: 'Adult and Pediatric First Aid/CPR/AED-BL-r.21',
-          type: 'CPR/AED',
-          audience: 'general',
-          price: 95,
-          duration_online: 120,
-          duration_skills: 60,
-          description: 'CPR and AED training for non-healthcare workers'
-        }
-      }
-    ];
-  }
-  return [];
-};
-
+// Database helper functions
 export const supabaseHelpers = {
+  // Get all available class sessions with class details
   async getAvailableSessions() {
-    return { data: getMockData('class_sessions'), error: null };
-  },
+  const { data, error } = await supabase
+    .from('class_sessions')
+    .select(`
+      *,
+      class:classes(*)
+    `)
+    // .gte('date', new Date().toISOString().split('T')[0])  // Comment this out
+    .eq('status', 'scheduled')
+    .order('date', { ascending: true })
   
-  async submitInquiry(data: InquiryData) {
-    console.log('Mock inquiry submitted:', data);
-    return { data: { id: '1', ...data }, error: null };
+  if (error) {
+    console.error('Error fetching sessions:', error);
   }
-};
+  
+  console.log('Query returned:', data?.length, 'sessions');
+  
+  return { data: data as ClassSessionWithClass[] | null, error }
+},
 
-export default createClientBrowser();
+  // Get single session details
+  async getSessionById(sessionId: string) {
+    const { data, error } = await supabase
+      .from('class_sessions')
+      .select(`
+        *,
+        class:classes(*)
+      `)
+      .eq('id', sessionId)
+      .single()
+    
+    return { data: data as ClassSessionWithClass | null, error }
+  },
+
+  // Create enrollment (for guest checkout)
+  async createEnrollment(enrollmentData: EnrollmentData) {
+    // First, increment the enrollment count
+    const { data: session } = await supabase
+      .from('class_sessions')
+      .select('current_enrollment, max_capacity')
+      .eq('id', enrollmentData.session_id)
+      .single()
+
+    if (session) {
+      const newEnrollment = session.current_enrollment + 1;
+      
+      // Update enrollment count
+      await supabase
+        .from('class_sessions')
+        .update({ 
+          current_enrollment: newEnrollment,
+          status: newEnrollment >= session.max_capacity ? 'full' : 'scheduled'
+        })
+        .eq('id', enrollmentData.session_id)
+    }
+
+    // Create the enrollment
+    const { data, error } = await supabase
+      .from('enrollments')
+      .insert([{
+        ...enrollmentData,
+        status: 'confirmed',
+        payment_status: 'paid',
+        enrolled_at: new Date().toISOString()
+      }])
+      .select()
+      .single()
+    
+    return { data: data as Enrollment | null, error }
+  },
+
+  // Submit contact form inquiry
+  async submitInquiry(inquiryData: InquiryData) {
+    const { data, error } = await supabase
+      .from('inquiries')
+      .insert([inquiryData])
+      .select()
+      .single()
+    
+    return { data, error }
+  },
+
+  // Admin: Get all enrollments
+  async getAllEnrollments() {
+    const { data, error } = await supabase
+      .from('enrollments')
+      .select(`
+        *,
+        session:class_sessions(
+          *,
+          class:classes(*)
+        )
+      `)
+      .order('enrolled_at', { ascending: false })
+    
+    return { data: data as Enrollment[] | null, error }
+  },
+
+  // Admin: Create new class session
+  async createClassSession(sessionData: SessionData) {
+    const { data, error } = await supabase
+      .from('class_sessions')
+      .insert([{
+        ...sessionData,
+        status: sessionData.status || 'scheduled',
+        current_enrollment: 0
+      }])
+      .select()
+      .single()
+    
+    return { data: data as ClassSession | null, error }
+  },
+
+  // Admin: Update class session
+  async updateClassSession(sessionId: string, updates: Partial<SessionData>) {
+    const { data, error } = await supabase
+      .from('class_sessions')
+      .update(updates)
+      .eq('id', sessionId)
+      .select()
+      .single()
+    
+    return { data: data as ClassSession | null, error }
+  },
+
+  // Admin: Cancel class session
+  async cancelClassSession(sessionId: string) {
+    const { data, error } = await supabase
+      .from('class_sessions')
+      .update({ status: 'cancelled' })
+      .eq('id', sessionId)
+    
+    return { data, error }
+  },
+
+  // Get user enrollments
+  async getUserEnrollments(email: string) {
+    const { data, error } = await supabase
+      .from('enrollments')
+      .select(`
+        *,
+        session:class_sessions(
+          *,
+          class:classes(*)
+        )
+      `)
+      .eq('guest_email', email)
+      .order('enrolled_at', { ascending: false })
+    
+    return { data: data as Enrollment[] | null, error }
+  },
+
+  // Admin: Get all inquiries
+  async getInquiries() {
+    const { data, error } = await supabase
+      .from('inquiries')
+      .select('*')
+      .order('created_at', { ascending: false })
+    
+    return { data, error }
+  },
+
+  // Admin: Update inquiry status
+  async updateInquiryStatus(inquiryId: string, status: 'new' | 'contacted' | 'resolved') {
+    const { data, error } = await supabase
+      .from('inquiries')
+      .update({ status })
+      .eq('id', inquiryId)
+    
+    return { data, error }
+  }
+}

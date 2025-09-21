@@ -1,4 +1,4 @@
-import { Award, Heart, Users, Target, Clock, Shield } from 'lucide-react';
+import { Award, Heart, Users, Target, Map, Shield } from 'lucide-react';
 
 export default function AboutPage() {
   return (
@@ -117,7 +117,7 @@ export default function AboutPage() {
                 </div>
                 
                 <div className="flex items-start space-x-3">
-                  <Clock className="w-6 h-6 text-primary-600 flex-shrink-0 mt-1" />
+                  <Map className="w-6 h-6 text-primary-600 flex-shrink-0 mt-1" />
                   <div>
                     <h3 className="font-semibold mb-1">State & National Standards</h3>
                     <p className="text-gray-600">

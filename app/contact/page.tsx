@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Mail, MapPin, Send, Users, Building } from 'lucide-react';
+import { Mail, MapPin, Send, Users, Building, AlertCircle } from 'lucide-react';
 import { toast } from '@/components/ui/Toaster';
 import { supabaseHelpers } from '@/lib/supabase';
 
@@ -94,6 +94,20 @@ export default function ContactPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Address Disclaimer */}
+                <div className="mt-6 p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-r">
+                  <div className="flex items-start">
+                    <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 mr-2 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-yellow-800 mb-1">Please Note</p>
+                      <p className="text-sm text-yellow-700">
+                        This is our administrative address. Please do not visit outside of scheduled class times. 
+                        All inquiries should be made through this form or via email.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="card p-6">
@@ -167,7 +181,7 @@ export default function ContactPage() {
                       >
                         <option value="">Select a service</option>
                         <option value="BLS">Basic Life Support (BLS)</option>
-                        <option value="CPR/AED">CPR/AED Training</option>
+                        <option value="CPR/AED">Adult and Pediatric First Aid/CPR/AED</option>
                         <option value="Mobile Training">Mobile/On-site Training</option>
                       </select>
                     </div>

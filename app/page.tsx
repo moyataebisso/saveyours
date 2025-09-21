@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { Heart, Zap, Home, Target, Award, Users, MapPin, GraduationCap, Activity, CheckCircle, Clock, Play } from 'lucide-react';
+import { Heart, Zap, Home, Target, Award, Users, MapPin, GraduationCap, Activity, CheckCircle, Clock, Play, AlertCircle } from 'lucide-react';
 
 export default function HomePage() {
   return (
@@ -34,31 +34,30 @@ export default function HomePage() {
                 because every moment matters.
               </p>
               
-              <div className="flex flex-col sm:flex-row gap-4 animate-fade-in-up mb-8">
-                <Link href="/classes" className="btn btn-primary">
-                  <Heart className="w-5 h-5 mr-2" />
+              <div className="flex flex-col gap-3 animate-fade-in-up mb-8">
+                <Link href="/classes" className="btn btn-primary inline-block">
+                  <Heart className="w-5 h-5 mr-2 inline" />
                   View Classes
                 </Link>
-                <Link href="/contact" className="btn btn-secondary">
-                  <MapPin className="w-5 h-5 mr-2" />
-                  Get a Quote
-                </Link>
+                <div>
+                  <p className="text-gray-700 mb-2">Interested in business plan pricing?</p>
+                  <Link href="/contact" className="btn btn-secondary inline-block">
+                    <MapPin className="w-5 h-5 mr-2 inline" />
+                    Get a Quote
+                  </Link>
+                </div>
               </div>
 
-              {/* New: Trust Indicators */}
+              {/* Trust Indicator - removed 500+ Lives Trained */}
               <div className="flex items-center gap-6 text-sm text-gray-600 animate-fade-in-up">
                 <div className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-green-500" />
                   <span>Red Cross Certified</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-blue-500" />
-                  <span>500+ Lives Trained</span>
-                </div>
               </div>
             </div>
 
-            {/* New: Hero Image */}
+            {/* Hero Image */}
             <div className="relative animate-fade-in-up">
               <div className="relative z-10 rounded-2xl overflow-hidden shadow-2xl bg-gradient-to-br from-primary-100 to-primary-50">
                 {/* Replace with actual image */}
@@ -91,31 +90,9 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* New: Statistics Bar */}
-      <section className="py-12 bg-white border-b">
-        <div className="container-custom">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-            <div>
-              <div className="text-3xl font-bold text-primary-600 mb-1">2,500+</div>
-              <div className="text-sm text-gray-600">Lives Impacted</div>
-            </div>
-            <div>
-              <div className="text-3xl font-bold text-primary-600 mb-1">98%</div>
-              <div className="text-sm text-gray-600">Pass Rate</div>
-            </div>
-            <div>
-              <div className="text-3xl font-bold text-primary-600 mb-1">2 Years</div>
-              <div className="text-sm text-gray-600">Certification Valid</div>
-            </div>
-            <div>
-              <div className="text-3xl font-bold text-primary-600 mb-1">12 Max</div>
-              <div className="text-sm text-gray-600">Class Size</div>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* Statistics Bar - Removed as requested */}
 
-      {/* Services Section - Enhanced with images */}
+      {/* Services Section - Enhanced with images and fixed badges */}
       <section className="py-20 bg-white">
         <div className="container-custom">
           <div className="text-center mb-12">
@@ -129,11 +106,11 @@ export default function HomePage() {
           
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
             {/* BLS Card with Image */}
-            <div className="group card overflow-hidden">
+            <div className="group card overflow-visible">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-600 to-primary-800 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-300"></div>
               
-              {/* New: Service Image */}
-              <div className="relative h-48 -mx-6 -mt-6 mb-6">
+              {/* Service Image with badge positioned to be fully visible */}
+              <div className="relative h-48 -mx-6 -mt-6 mb-6 rounded-t-lg overflow-hidden">
                 <Image 
                   src="/images/bls-training.png"
                   alt="BLS Training for Healthcare"
@@ -142,7 +119,7 @@ export default function HomePage() {
                   placeholder="blur"
                   blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ..."
                 />
-                <div className="absolute top-4 left-4 bg-primary-600 text-white px-3 py-1 rounded-full text-xs font-semibold">
+                <div className="absolute top-4 left-4 bg-primary-600 text-white px-4 py-2 rounded-full text-sm font-semibold shadow-lg">
                   Healthcare Pro
                 </div>
               </div>
@@ -166,20 +143,20 @@ export default function HomePage() {
             </div>
 
             {/* CPR/AED Card with Image */}
-            <div className="group card overflow-hidden">
+            <div className="group card overflow-visible">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-600 to-primary-800 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-300"></div>
               
-              {/* New: Service Image */}
-              <div className="relative h-48 -mx-6 -mt-6 mb-6">
+              {/* Service Image with badge positioned to be fully visible */}
+              <div className="relative h-48 -mx-6 -mt-6 mb-6 rounded-t-lg overflow-hidden">
                 <Image 
                   src="/images/cpr-aed-training.png"
-                  alt="CPR/AED Training"
+                  alt="CPR/AED/First Aid Training"
                   fill
                   className="object-cover"
                   placeholder="blur"
                   blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ..."
                 />
-                <div className="absolute top-4 left-4 bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-semibold">
+                <div className="absolute top-4 left-4 bg-blue-600 text-white px-4 py-2 rounded-full text-sm font-semibold shadow-lg">
                   General Public
                 </div>
               </div>
@@ -203,11 +180,11 @@ export default function HomePage() {
             </div>
 
             {/* Mobile Training Card with Image */}
-            <div className="group card overflow-hidden">
+            <div className="group card overflow-visible">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-600 to-primary-800 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-300"></div>
               
-              {/* New: Service Image */}
-              <div className="relative h-48 -mx-6 -mt-6 mb-6">
+              {/* Service Image with badge positioned to be fully visible */}
+              <div className="relative h-48 -mx-6 -mt-6 mb-6 rounded-t-lg overflow-hidden">
                 <Image 
                   src="/images/mobile-training.png"
                   alt="Mobile Training Service"
@@ -216,7 +193,7 @@ export default function HomePage() {
                   placeholder="blur"
                   blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ..."
                 />
-                <div className="absolute top-4 left-4 bg-green-600 text-white px-3 py-1 rounded-full text-xs font-semibold">
+                <div className="absolute top-4 left-4 bg-green-600 text-white px-4 py-2 rounded-full text-sm font-semibold shadow-lg">
                   We Come to You
                 </div>
               </div>
@@ -242,8 +219,8 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* New: Visual Process Section */}
-      <section className="py-20 bg-beige-50">
+      {/* Visual Process Section - Updated with darker background and reminder */}
+      <section className="py-20 bg-gray-100">
         <div className="container-custom">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
@@ -282,6 +259,22 @@ export default function HomePage() {
               </div>
               <h3 className="font-semibold text-lg mb-2">Get Certified</h3>
               <p className="text-gray-600 text-sm">Receive your 2-year certification</p>
+            </div>
+          </div>
+
+          {/* Important Reminder between steps 2 and 3 */}
+          <div className="mt-12 max-w-3xl mx-auto">
+            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg">
+              <div className="flex items-start">
+                <AlertCircle className="w-5 h-5 text-yellow-600 mr-3 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold text-yellow-800 mb-1">Important Reminder</p>
+                  <p className="text-sm text-yellow-700">
+                    Before attending your registered class, you must bring proof of online course completion. 
+                    Please print your completion record or have it ready to show on your device.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -344,7 +337,7 @@ export default function HomePage() {
                     <Activity className="w-7 h-7 text-primary-600" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-semibold text-gray-900 mb-2">Hands-On Practice</h3>
+                    <h3 className="text-xl font-semibold text-lg mb-2">Hands-On Practice</h3>
                     <p className="text-gray-600">
                       Practice on professional training mannequins with expert guidance
                     </p>

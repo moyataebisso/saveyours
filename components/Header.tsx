@@ -2,14 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Menu, X, ShoppingCart, User, Heart } from 'lucide-react';
-import { usePathname } from 'next/navigation';
+import { Menu, X, ShoppingCart, User, Heart, Shield, LogOut } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [cartCount, setCartCount] = useState(0);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const pathname = usePathname();
+  const router = useRouter();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -25,12 +28,37 @@ export default function Header() {
       if (cart) {
         const items = JSON.parse(cart);
         setCartCount(items.length);
+      } else {
+        setCartCount(0);
       }
     };
+    
+    const checkAuthStatus = () => {
+      const adminAuth = localStorage.getItem('adminAuthenticated');
+      const dashboardEmail = localStorage.getItem('dashboardEmail');
+      setIsAdmin(adminAuth === 'true');
+      setUserEmail(dashboardEmail);
+    };
+
     loadCartCount();
+    checkAuthStatus();
+    
     window.addEventListener('storage', loadCartCount);
-    return () => window.removeEventListener('storage', loadCartCount);
+    window.addEventListener('storage', checkAuthStatus);
+    
+    return () => {
+      window.removeEventListener('storage', loadCartCount);
+      window.removeEventListener('storage', checkAuthStatus);
+    };
   }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem('adminAuthenticated');
+    localStorage.removeItem('dashboardEmail');
+    setIsAdmin(false);
+    setUserEmail(null);
+    router.push('/');
+  };
 
   const navLinks = [
     { href: '/', label: 'Home' },
@@ -69,6 +97,27 @@ export default function Header() {
                 {link.label}
               </Link>
             ))}
+            {(userEmail || isAdmin) && (
+              <Link
+                href="/dashboard"
+                className={`font-medium transition-colors hover:text-primary-600 ${
+                  pathname === '/dashboard' ? 'text-primary-600' : 'text-gray-700'
+                }`}
+              >
+                My Classes
+              </Link>
+            )}
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className={`font-medium transition-colors hover:text-primary-600 flex items-center gap-1 ${
+                  pathname === '/admin' ? 'text-primary-600' : 'text-gray-700'
+                }`}
+              >
+                <Shield className="w-4 h-4" />
+                Admin
+              </Link>
+            )}
           </div>
 
           <div className="hidden md:flex items-center space-x-4">
@@ -80,6 +129,30 @@ export default function Header() {
                 </span>
               )}
             </Link>
+            
+            {isAdmin || userEmail ? (
+              <div className="flex items-center space-x-3">
+                <span className="text-sm text-gray-600">
+                  {isAdmin ? 'Admin' : userEmail}
+                </span>
+                <button
+                  onClick={handleLogout}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Logout"
+                >
+                  <LogOut className="w-5 h-5 text-gray-700" />
+                </button>
+              </div>
+            ) : (
+              <Link 
+                href="/login" 
+                className="flex items-center space-x-2 px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <User className="w-5 h-5" />
+                <span>Sign In</span>
+              </Link>
+            )}
+            
             <Link href="/classes" className="btn btn-primary text-sm">
               Book Now
             </Link>
@@ -112,6 +185,32 @@ export default function Header() {
                   {link.label}
                 </Link>
               ))}
+              
+              {(userEmail || isAdmin) && (
+                <Link
+                  href="/dashboard"
+                  onClick={() => setIsMenuOpen(false)}
+                  className={`font-medium py-2 px-4 rounded-lg transition-colors hover:bg-gray-100 ${
+                    pathname === '/dashboard' ? 'text-primary-600 bg-primary-50' : 'text-gray-700'
+                  }`}
+                >
+                  My Classes
+                </Link>
+              )}
+              
+              {isAdmin && (
+                <Link
+                  href="/admin"
+                  onClick={() => setIsMenuOpen(false)}
+                  className={`font-medium py-2 px-4 rounded-lg transition-colors hover:bg-gray-100 flex items-center gap-2 ${
+                    pathname === '/admin' ? 'text-primary-600 bg-primary-50' : 'text-gray-700'
+                  }`}
+                >
+                  <Shield className="w-4 h-4" />
+                  Admin
+                </Link>
+              )}
+              
               <Link
                 href="/cart"
                 onClick={() => setIsMenuOpen(false)}
@@ -124,6 +223,29 @@ export default function Header() {
                   </span>
                 )}
               </Link>
+              
+              {isAdmin || userEmail ? (
+                <button
+                  onClick={() => {
+                    handleLogout();
+                    setIsMenuOpen(false);
+                  }}
+                  className="font-medium py-2 px-4 rounded-lg transition-colors hover:bg-gray-100 text-gray-700 flex items-center gap-2 text-left"
+                >
+                  <LogOut className="w-5 h-5" />
+                  Logout
+                </button>
+              ) : (
+                <Link
+                  href="/login"
+                  onClick={() => setIsMenuOpen(false)}
+                  className="font-medium py-2 px-4 rounded-lg transition-colors hover:bg-gray-100 text-gray-700 flex items-center gap-2"
+                >
+                  <User className="w-5 h-5" />
+                  Sign In
+                </Link>
+              )}
+              
               <Link
                 href="/classes"
                 onClick={() => setIsMenuOpen(false)}

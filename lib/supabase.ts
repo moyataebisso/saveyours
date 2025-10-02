@@ -17,24 +17,24 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 export const supabaseHelpers = {
   // Get all available class sessions with class details
   async getAvailableSessions() {
-  const { data, error } = await supabase
-    .from('class_sessions')
-    .select(`
-      *,
-      class:classes(*)
-    `)
-    // .gte('date', new Date().toISOString().split('T')[0])  // Comment this out
-    .eq('status', 'scheduled')
-    .order('date', { ascending: true })
-  
-  if (error) {
-    console.error('Error fetching sessions:', error);
-  }
-  
-  console.log('Query returned:', data?.length, 'sessions');
-  
-  return { data: data as ClassSessionWithClass[] | null, error }
-},
+    const { data, error } = await supabase
+      .from('class_sessions')
+      .select(`
+        *,
+        class:classes(*)
+      `)
+      // .gte('date', new Date().toISOString().split('T')[0])  // Comment this out
+      .eq('status', 'scheduled')
+      .order('date', { ascending: true })
+    
+    if (error) {
+      console.error('Error fetching sessions:', error);
+    }
+    
+    console.log('Query returned:', data?.length, 'sessions');
+    
+    return { data: data as ClassSessionWithClass[] | null, error }
+  },
 
   // Get single session details
   async getSessionById(sessionId: string) {
@@ -141,14 +141,52 @@ export const supabaseHelpers = {
     return { data: data as ClassSession | null, error }
   },
 
-  // Admin: Cancel class session
+  // Admin: Cancel class session - FIXED VERSION
   async cancelClassSession(sessionId: string) {
-    const { data, error } = await supabase
-      .from('class_sessions')
-      .update({ status: 'cancelled' })
-      .eq('id', sessionId)
+    console.log('Cancelling session:', sessionId);
     
-    return { data, error }
+    try {
+      // Update without using .single() to avoid the JSON coercion error
+      const { data, error } = await supabase
+        .from('class_sessions')
+        .update({ 
+          status: 'cancelled'
+        })
+        .eq('id', sessionId)
+        .select();  // Remove .single() here
+      
+      if (error) {
+        console.error('Error cancelling session:', error);
+        return { data: null, error };
+      }
+      
+      // Check if update was successful
+      if (data && data.length > 0) {
+        console.log('Session cancelled successfully:', data[0]);
+        
+        // Update related enrollments
+        await supabase
+          .from('enrollments')
+          .update({ 
+            status: 'cancelled'
+          })
+          .eq('session_id', sessionId);
+        
+        return { data: data[0], error: null };
+      } else {
+        console.error('No session found with id:', sessionId);
+        return { 
+          data: null, 
+          error: { message: 'Session not found', code: 'NOT_FOUND' } 
+        };
+      }
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      return { 
+        data: null, 
+        error: { message: 'Unexpected error occurred', code: 'UNKNOWN' } 
+      };
+    }
   },
 
   // Get user enrollments

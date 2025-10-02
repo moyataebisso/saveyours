@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Menu, X, ShoppingCart, User, Heart, Shield, LogOut } from 'lucide-react';
+import { Menu, X, ShoppingCart, User, Heart, Shield, LogOut, Lock } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 
 export default function Header() {
@@ -121,6 +121,23 @@ export default function Header() {
           </div>
 
           <div className="hidden md:flex items-center space-x-4">
+            {/* Always visible admin access - small lock icon */}
+            <Link 
+              href="/admin" 
+              className={`p-2 rounded-lg transition-all ${
+                isAdmin 
+                  ? 'text-primary-600 bg-primary-50 hover:bg-primary-100' 
+                  : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+              }`}
+              title={isAdmin ? 'Admin Dashboard' : 'Admin Login'}
+            >
+              {isAdmin ? (
+                <Shield className="w-5 h-5" />
+              ) : (
+                <Lock className="w-4 h-4" />
+              )}
+            </Link>
+
             <Link href="/cart" className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
               <ShoppingCart className="w-6 h-6 text-gray-700" />
               {cartCount > 0 && (
@@ -198,18 +215,26 @@ export default function Header() {
                 </Link>
               )}
               
-              {isAdmin && (
-                <Link
-                  href="/admin"
-                  onClick={() => setIsMenuOpen(false)}
-                  className={`font-medium py-2 px-4 rounded-lg transition-colors hover:bg-gray-100 flex items-center gap-2 ${
-                    pathname === '/admin' ? 'text-primary-600 bg-primary-50' : 'text-gray-700'
-                  }`}
-                >
-                  <Shield className="w-4 h-4" />
-                  Admin
-                </Link>
-              )}
+              {/* Always show admin access in mobile menu */}
+              <Link
+                href="/admin"
+                onClick={() => setIsMenuOpen(false)}
+                className={`font-medium py-2 px-4 rounded-lg transition-colors hover:bg-gray-100 flex items-center gap-2 ${
+                  pathname === '/admin' ? 'text-primary-600 bg-primary-50' : 'text-gray-700'
+                }`}
+              >
+                {isAdmin ? (
+                  <>
+                    <Shield className="w-4 h-4" />
+                    Admin Dashboard
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-4 h-4" />
+                    Admin Login
+                  </>
+                )}
+              </Link>
               
               <Link
                 href="/cart"

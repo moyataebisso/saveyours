@@ -18,26 +18,54 @@ export default function AdminDashboard() {
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddSession, setShowAddSession] = useState(false);
+  const [cancellingSession, setCancellingSession] = useState<string | null>(null);
 
-  // Simple password protection
-  const ADMIN_PASSWORD = 'SaveYours2024!'; // Change this in production
+  // Hardcoded password
+  const ADMIN_PASSWORD = 'SaveYours2024!';
+  const SESSION_TIMEOUT = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
 
   useEffect(() => {
+    checkAuthentication();
+  }, []);
+
+  const checkAuthentication = () => {
     const isAdmin = localStorage.getItem('adminAuthenticated');
-    if (isAdmin === 'true') {
-      setIsAuthenticated(true);
-      loadData();
+    const authTime = localStorage.getItem('adminAuthTime');
+    
+    if (isAdmin === 'true' && authTime) {
+      // Check if session has expired
+      const sessionAge = Date.now() - parseInt(authTime);
+      
+      if (sessionAge > SESSION_TIMEOUT) {
+        // Session expired
+        console.log('Admin session expired');
+        localStorage.removeItem('adminAuthenticated');
+        localStorage.removeItem('adminAuthTime');
+        setIsAuthenticated(false);
+        toast.info('Session expired. Please login again.');
+      } else {
+        // Session still valid
+        const remainingTime = SESSION_TIMEOUT - sessionAge;
+        const remainingMinutes = Math.floor(remainingTime / 60000);
+        console.log(`Admin session valid. ${remainingMinutes} minutes remaining.`);
+        setIsAuthenticated(true);
+        loadData();
+      }
     } else {
       setLoading(false);
     }
-  }, []);
+  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (password === ADMIN_PASSWORD) {
+      // Set authentication with timestamp
       localStorage.setItem('adminAuthenticated', 'true');
+      localStorage.setItem('adminAuthTime', Date.now().toString());
       setIsAuthenticated(true);
       loadData();
+      toast.success('Login successful - session expires in 2 hours');
     } else {
       toast.error('Invalid password');
     }
@@ -45,21 +73,40 @@ export default function AdminDashboard() {
 
   const handleLogout = () => {
     localStorage.removeItem('adminAuthenticated');
+    localStorage.removeItem('adminAuthTime');
+    setIsAuthenticated(false);
     router.push('/');
   };
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [enrollmentsData, sessionsData, inquiriesData, classesData] = await Promise.all([
+      // Get ALL sessions for admin view
+      const { data: sessionsData, error: sessionsError } = await supabase
+        .from('class_sessions')
+        .select('*, class:classes(*)')
+        .order('date', { ascending: true });
+
+      if (sessionsError) {
+        console.error('Error loading sessions:', sessionsError);
+        toast.error('Failed to load sessions');
+      } else {
+        console.log('Loaded sessions with IDs:', sessionsData?.map(s => ({ 
+          id: s.id, 
+          date: s.date, 
+          status: s.status 
+        })));
+        setSessions(sessionsData || []);
+      }
+
+      // Load other data
+      const [enrollmentsData, inquiriesData, classesData] = await Promise.all([
         supabaseHelpers.getAllEnrollments(),
-        supabaseHelpers.getAvailableSessions(),
         supabaseHelpers.getInquiries(),
         supabase.from('classes').select('*')
       ]);
 
       setEnrollments(enrollmentsData.data || []);
-      setSessions(sessionsData.data || []);
       setInquiries(inquiriesData.data || []);
       setClasses(classesData.data || []);
     } catch (error) {
@@ -87,13 +134,72 @@ export default function AdminDashboard() {
     }
   };
 
+  // SIMPLIFIED CANCEL FUNCTION - Direct approach without corruption handling
   const cancelSession = async (sessionId: string) => {
-    const { error } = await supabaseHelpers.cancelClassSession(sessionId);
-    if (!error) {
-      toast.success('Session cancelled');
-      loadData();
-    } else {
-      toast.error('Failed to cancel session');
+    console.log('=== CANCEL SESSION ===');
+    console.log('Session ID to cancel:', sessionId);
+    
+    setCancellingSession(sessionId);
+    
+    try {
+      // Simple, direct update - no fancy error handling
+      const { data, error } = await supabase
+        .from('class_sessions')
+        .update({ status: 'cancelled' })
+        .eq('id', sessionId)
+        .select();
+      
+      console.log('Update result - Data:', data, 'Error:', error);
+      
+      if (error) {
+        console.error('Supabase error:', error);
+        
+        // Check if it's a permission issue
+        if (error.message?.includes('permission') || error.message?.includes('RLS')) {
+          toast.error('Permission denied. Check Row Level Security policies.');
+        } else {
+          toast.error(`Database error: ${error.message}`);
+        }
+        return;
+      }
+      
+      if (data && data.length > 0) {
+        console.log('Session cancelled successfully');
+        toast.success('Session cancelled successfully');
+        
+        // Update local state immediately so UI reflects the change
+        setSessions(prevSessions => 
+          prevSessions.map(session => 
+            session.id === sessionId
+              ? { ...session, status: 'cancelled' }
+              : session
+          )
+        );
+        
+        // Also cancel related enrollments (don't wait for this)
+        const cancelEnrollments = async () => {
+          try {
+            await supabase
+              .from('enrollments')
+              .update({ status: 'cancelled' })
+              .eq('session_id', sessionId);
+            console.log('Enrollments cancelled');
+          } catch (err) {
+            console.error('Error cancelling enrollments:', err);
+          }
+        };
+        cancelEnrollments();
+        
+      } else {
+        console.log('No data returned - session may not exist');
+        toast.error('Session not found in database');
+      }
+      
+    } catch (err) {
+      console.error('Unexpected error:', err);
+      toast.error('Unexpected error. Check browser console for details.');
+    } finally {
+      setCancellingSession(null);
     }
   };
 
@@ -129,6 +235,9 @@ export default function AdminDashboard() {
               Login
             </button>
           </form>
+          <p className="text-xs text-gray-500 mt-4 text-center">
+            Session will expire after 2 hours of login
+          </p>
         </div>
       </div>
     );
@@ -142,11 +251,16 @@ export default function AdminDashboard() {
     );
   }
 
-  // Calculate stats
+  // Calculate stats - only count scheduled sessions as upcoming
   const totalRevenue = enrollments
     .filter(e => e.payment_status === 'paid')
     .reduce((sum, e) => sum + (e.amount_paid || 0), 0);
-  const upcomingSessions = sessions.filter(s => new Date(s.date) >= new Date()).length;
+  const upcomingSessions = sessions.filter(s => {
+    const sessionDate = new Date(s.date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return sessionDate >= today && s.status === 'scheduled';
+  }).length;
   const totalEnrollments = enrollments.length;
   const newInquiries = inquiries.filter(i => i.status === 'new').length;
 
@@ -244,13 +358,22 @@ export default function AdminDashboard() {
               <div>
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-xl font-semibold">Class Sessions</h2>
-                  <button
-                    onClick={() => setShowAddSession(true)}
-                    className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Session
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowAddSession(true)}
+                      className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 flex items-center"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add Session
+                    </button>
+                    <button
+                      onClick={() => loadData()}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                      title="Refresh data from database"
+                    >
+                      🔄 Refresh
+                    </button>
+                  </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full">
@@ -265,7 +388,9 @@ export default function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {sessions.map(session => (
+                      {sessions
+                        .filter(session => session.status !== 'cancelled') // Hide cancelled sessions
+                        .map(session => (
                         <tr key={session.id} className="border-b">
                           <td className="px-4 py-2">
                             {new Date(session.date).toLocaleDateString()}
@@ -281,20 +406,31 @@ export default function AdminDashboard() {
                             <span className={`px-2 py-1 rounded text-xs ${
                               session.status === 'scheduled' 
                                 ? 'bg-green-100 text-green-800'
+                                : session.status === 'cancelled'
+                                ? 'bg-red-100 text-red-800'
                                 : session.status === 'full'
                                 ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-red-100 text-red-800'
+                                : 'bg-gray-100 text-gray-800'
                             }`}>
                               {session.status}
                             </span>
                           </td>
                           <td className="px-4 py-2">
-                            <button
-                              onClick={() => cancelSession(session.id)}
-                              className="text-red-600 hover:text-red-800"
-                            >
-                              Cancel
-                            </button>
+                            {session.status === 'scheduled' ? (
+                              <button
+                                onClick={() => cancelSession(session.id)}
+                                disabled={cancellingSession === session.id}
+                                className={`text-red-600 hover:text-red-800 ${
+                                  cancellingSession === session.id ? 'opacity-50 cursor-not-allowed' : ''
+                                }`}
+                              >
+                                {cancellingSession === session.id ? 'Cancelling...' : 'Cancel'}
+                              </button>
+                            ) : session.status === 'cancelled' ? (
+                              <span className="text-gray-400">Cancelled</span>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
                           </td>
                         </tr>
                       ))}

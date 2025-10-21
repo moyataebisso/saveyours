@@ -48,7 +48,7 @@ export default function HomePage() {
                 </div>
               </div>
 
-              {/* Trust Indicator - removed 500+ Lives Trained */}
+              {/* Trust Indicator */}
               <div className="flex items-center gap-6 text-sm text-gray-600 animate-fade-in-up">
                 <div className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-green-500" />
@@ -67,9 +67,9 @@ export default function HomePage() {
                     alt="CPR Training in Action"
                     fill
                     className="object-cover"
+                    sizes="(max-width: 1024px) 100vw, 50vw"
+                    quality={90}
                     priority
-                    placeholder="blur"
-                    blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ..."
                   />
                   {/* Overlay with play button */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent flex items-end p-6">
@@ -90,8 +90,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Statistics Bar - Removed as requested */}
-
       {/* Services Section - Enhanced with images and fixed badges */}
       <section className="py-20 bg-white">
         <div className="container-custom">
@@ -109,17 +107,20 @@ export default function HomePage() {
             <div className="group card overflow-visible">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-600 to-primary-800 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-300"></div>
               
-              {/* Service Image with badge positioned to be fully visible */}
+              {/* Service Image with badge */}
               <div className="relative h-48 -mx-6 -mt-6 mb-6 rounded-t-lg overflow-hidden">
                 <Image 
                   src="/images/bls-training.png"
                   alt="BLS Training for Healthcare"
                   fill
-                  className="object-cover"
-                  placeholder="blur"
-                  blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ..."
+                  className="object-cover object-center"
+                  sizes="400px"
+                  quality={90}
+                  priority
+                  unoptimized
                 />
-                <div className="absolute top-4 left-4 bg-primary-600 text-white px-4 py-2 rounded-full text-sm font-semibold shadow-lg">
+                {/* Badge positioned bottom right with 32px spacing */}
+                <div className="absolute bottom-4 right-8 bg-red-600 text-white px-3 py-1.5 rounded-full text-sm font-semibold shadow-lg z-10">
                   Healthcare Pro
                 </div>
               </div>
@@ -146,17 +147,20 @@ export default function HomePage() {
             <div className="group card overflow-visible">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-600 to-primary-800 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-300"></div>
               
-              {/* Service Image with badge positioned to be fully visible */}
+              {/* Service Image - SAME HEIGHT AS OTHERS */}
               <div className="relative h-48 -mx-6 -mt-6 mb-6 rounded-t-lg overflow-hidden">
                 <Image 
                   src="/images/cpr-aed-training.png"
                   alt="CPR/AED/First Aid Training"
                   fill
-                  className="object-cover"
-                  placeholder="blur"
-                  blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ..."
+                  className="object-cover object-center"
+                  sizes="400px"
+                  quality={90}
+                  priority
+                  unoptimized
                 />
-                <div className="absolute top-4 left-4 bg-blue-600 text-white px-4 py-2 rounded-full text-sm font-semibold shadow-lg">
+                {/* Badge positioned bottom right with 32px spacing */}
+                <div className="absolute bottom-4 right-8 bg-blue-600 text-white px-3 py-1.5 rounded-full text-sm font-semibold shadow-lg z-10">
                   General Public
                 </div>
               </div>
@@ -165,7 +169,7 @@ export default function HomePage() {
                 <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                   <Zap className="w-8 h-8 text-primary-600" />
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">CPR/AED Training</h3>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">CPR/AED/First Aid Training</h3>
                 <p className="text-gray-500 text-sm mb-4">For Non-Healthcare Workers</p>
                 <div className="text-4xl font-bold text-primary-600 mb-4">$95</div>
                 <p className="text-gray-600 mb-6">
@@ -183,17 +187,20 @@ export default function HomePage() {
             <div className="group card overflow-visible">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-600 to-primary-800 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-300"></div>
               
-              {/* Service Image with badge positioned to be fully visible */}
+              {/* Service Image with badge positioned bottom right */}
               <div className="relative h-48 -mx-6 -mt-6 mb-6 rounded-t-lg overflow-hidden">
                 <Image 
                   src="/images/mobile-training.png"
                   alt="Mobile Training Service"
                   fill
-                  className="object-cover"
-                  placeholder="blur"
-                  blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQ..."
+                  className="object-cover object-center"
+                  sizes="400px"
+                  quality={90}
+                  priority
+                  unoptimized
                 />
-                <div className="absolute top-4 left-4 bg-green-600 text-white px-4 py-2 rounded-full text-sm font-semibold shadow-lg">
+                {/* Badge positioned bottom right - moved much more inward */}
+                <div className="absolute bottom-2 right-6 bg-green-600 text-white px-3 py-1.5 rounded-full text-xs font-semibold shadow-lg z-10">
                   We Come to You
                 </div>
               </div>
@@ -355,6 +362,8 @@ export default function HomePage() {
                     alt="Students practicing CPR"
                     fill
                     className="object-cover"
+                    sizes="(max-width: 768px) 100vw, 25vw"
+                    quality={90}
                   />
                 </div>
                 <div className="relative h-64 rounded-lg overflow-hidden shadow-lg">
@@ -363,6 +372,8 @@ export default function HomePage() {
                     alt="Group training session"
                     fill
                     className="object-cover"
+                    sizes="(max-width: 768px) 100vw, 25vw"
+                    quality={90}
                   />
                 </div>
               </div>
@@ -373,6 +384,8 @@ export default function HomePage() {
                     alt="Instructor demonstration"
                     fill
                     className="object-cover"
+                    sizes="(max-width: 768px) 100vw, 25vw"
+                    quality={90}
                   />
                 </div>
                 <div className="relative h-48 rounded-lg overflow-hidden shadow-lg">
@@ -381,6 +394,8 @@ export default function HomePage() {
                     alt="Certification ceremony"
                     fill
                     className="object-cover"
+                    sizes="(max-width: 768px) 100vw, 25vw"
+                    quality={90}
                   />
                 </div>
               </div>

@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { Heart, Mail, MapPin, Phone } from 'lucide-react';
+import Image from 'next/image';
+import { Mail, MapPin, Phone } from 'lucide-react';
 
 export default function Footer() {
   return (
@@ -7,13 +8,14 @@ export default function Footer() {
       <div className="container-custom py-12">
         <div className="grid md:grid-cols-4 gap-8">
           <div>
-            <div className="flex items-center space-x-2 mb-4">
-              <div className="w-10 h-10 bg-primary-600 rounded-full flex items-center justify-center">
-                <Heart className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <span className="text-2xl font-bold">SaveYours</span>
-              </div>
+            <div className="mb-4">
+              <Image 
+                src="/images/logo.png" 
+                alt="SaveYours Logo" 
+                width={400} 
+                height={160} 
+                className="h-16 w-auto"
+              />
             </div>
             <p className="text-gray-400 text-sm">
               Empowering individuals with life-saving skills through professional CPR and First Aid training.

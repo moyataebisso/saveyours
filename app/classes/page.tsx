@@ -40,31 +40,31 @@ export default function ClassesPage() {
   }, []);
 
   const loadSessions = async () => {
-  try {
-    console.log('Starting to load sessions...');
-    console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
-    
-    const { data, error } = await supabaseHelpers.getAvailableSessions();
-    
-    console.log('Raw response - Data:', data);
-    console.log('Raw response - Error:', error);
-    
-    if (error) {
-      console.error('Supabase error details:', error);
+    try {
+      console.log('Starting to load sessions...');
+      console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
+      
+      const { data, error } = await supabaseHelpers.getAvailableSessions();
+      
+      console.log('Raw response - Data:', data);
+      console.log('Raw response - Error:', error);
+      
+      if (error) {
+        console.error('Supabase error details:', error);
+      }
+      
+      if (data) {
+        console.log('Number of sessions found:', data.length);
+        console.log('First session (if any):', data[0]);
+      }
+      
+      setSessions(data || []);
+      setLoading(false);
+    } catch (err) {
+      console.error('Caught error:', err);
+      setLoading(false);
     }
-    
-    if (data) {
-      console.log('Number of sessions found:', data.length);
-      console.log('First session (if any):', data[0]);
-    }
-    
-    setSessions(data || []);
-    setLoading(false);
-  } catch (err) {
-    console.error('Caught error:', err);
-    setLoading(false);
-  }
-};
+  };
 
   const filteredSessions = sessions.filter(session => {
     if (filter === 'all') return true;
@@ -230,8 +230,8 @@ export default function ClassesPage() {
                 className="input py-2"
               >
                 <option value="all">All Classes</option>
-                <option value="healthcare">Healthcare Workers</option>
-                <option value="general">General Public</option>
+                <option value="healthcare">BLS</option>
+                <option value="general">CPR/AED/First Aid</option>
               </select>
             </div>
           </div>

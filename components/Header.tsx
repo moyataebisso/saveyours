@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Menu, X, ShoppingCart, User, Heart, Shield, LogOut, Lock } from 'lucide-react';
+import Image from 'next/image';
+import { Menu, X, ShoppingCart, User, Shield, LogOut, Lock } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 
 export default function Header() {
@@ -73,16 +74,15 @@ export default function Header() {
     }`}>
       <nav className="container-custom py-4">
         <div className="flex items-center justify-between">
-          <Link href="/" className="flex items-center space-x-2 group">
-            <div className="relative">
-              <div className="w-10 h-10 bg-primary-600 rounded-full flex items-center justify-center group-hover:bg-primary-700 transition-colors">
-                <Heart className="w-6 h-6 text-white" />
-              </div>
-            </div>
-            <div>
-              <span className="text-2xl font-bold text-gray-900">Save</span>
-              <span className="text-2xl font-bold text-primary-600">Yours</span>
-            </div>
+          <Link href="/" className="flex items-center">
+            <Image 
+              src="/images/logo.png" 
+              alt="SaveYours Logo" 
+              width={400} 
+              height={160} 
+              className="h-16 md:h-20 w-auto"
+              priority
+            />
           </Link>
 
           <div className="hidden md:flex items-center space-x-8">

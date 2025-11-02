@@ -15,20 +15,59 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
 
-    // Call API route to verify credentials
-    const response = await fetch('/api/auth/admin', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
+    try {
+      // Try regular user login first
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
 
-    if (response.ok) {
-      localStorage.setItem('adminAuthenticated', 'true');
-      router.push('/admin');
-    } else {
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Store user info
+        localStorage.setItem('dashboardEmail', email);
+        
+        // Check if admin
+        if (data.user.role === 'admin') {
+          localStorage.setItem('adminAuthenticated', 'true');
+          toast.success('Welcome Admin!');
+          router.push('/admin');
+        } else {
+          // Regular user - go to dashboard
+          toast.success('Login successful!');
+          router.push('/dashboard');
+        }
+        return;
+      }
+
+      // If that fails with 404, try the admin-only login (backward compatibility)
+      if (response.status === 404) {
+        const adminResponse = await fetch('/api/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        if (adminResponse.ok) {
+          localStorage.setItem('adminAuthenticated', 'true');
+          localStorage.setItem('dashboardEmail', email);
+          toast.success('Welcome Admin!');
+          router.push('/admin');
+          return;
+        }
+      }
+
+      // If we get here, login failed
       toast.error('Invalid credentials');
+      
+    } catch (error) {
+      console.error('Login error:', error);
+      toast.error('An error occurred during login');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -48,7 +87,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500"
-                placeholder="admin@saveyours.net"
+                placeholder="johnappleseed@gmail.com"
               />
             </div>
             

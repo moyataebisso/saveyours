@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Menu, X, ShoppingCart, User, Shield, LogOut, Lock } from 'lucide-react';
+import { Menu, X, ShoppingCart, User, Shield, LogOut } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 
 export default function Header() {
@@ -70,17 +70,19 @@ export default function Header() {
 
   return (
     <header className={`sticky top-0 z-50 transition-all duration-300 ${
-      isScrolled ? 'bg-white shadow-lg' : 'bg-white/95 backdrop-blur-sm shadow-md'
+      isScrolled 
+        ? 'bg-white/95 backdrop-blur-md shadow-lg' 
+        : 'bg-white/80 backdrop-blur-sm shadow-sm'
     }`}>
-      <nav className="container-custom py-4">
+      <nav className="container-custom py-6">
         <div className="flex items-center justify-between">
           <Link href="/" className="flex items-center">
             <Image 
               src="/images/logo.png" 
               alt="SaveYours Logo" 
-              width={400} 
-              height={160} 
-              className="h-16 md:h-20 w-auto"
+              width={800} 
+              height={320} 
+              className="h-36 md:h-44 w-auto"
               priority
             />
           </Link>
@@ -121,24 +123,7 @@ export default function Header() {
           </div>
 
           <div className="hidden md:flex items-center space-x-4">
-            {/* Always visible admin access - small lock icon */}
-            <Link 
-              href="/admin" 
-              className={`p-2 rounded-lg transition-all ${
-                isAdmin 
-                  ? 'text-primary-600 bg-primary-50 hover:bg-primary-100' 
-                  : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
-              }`}
-              title={isAdmin ? 'Admin Dashboard' : 'Admin Login'}
-            >
-              {isAdmin ? (
-                <Shield className="w-5 h-5" />
-              ) : (
-                <Lock className="w-4 h-4" />
-              )}
-            </Link>
-
-            <Link href="/cart" className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <Link href="/cart" className="relative p-2 hover:bg-gray-100/80 rounded-lg transition-colors">
               <ShoppingCart className="w-6 h-6 text-gray-700" />
               {cartCount > 0 && (
                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary-600 text-white text-xs rounded-full flex items-center justify-center">
@@ -154,7 +139,7 @@ export default function Header() {
                 </span>
                 <button
                   onClick={handleLogout}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  className="p-2 hover:bg-gray-100/80 rounded-lg transition-colors"
                   title="Logout"
                 >
                   <LogOut className="w-5 h-5 text-gray-700" />
@@ -163,7 +148,7 @@ export default function Header() {
             ) : (
               <Link 
                 href="/login" 
-                className="flex items-center space-x-2 px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                className="flex items-center space-x-2 px-4 py-2 text-gray-700 hover:bg-gray-100/80 rounded-lg transition-colors"
               >
                 <User className="w-5 h-5" />
                 <span>Sign In</span>
@@ -177,7 +162,7 @@ export default function Header() {
 
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="md:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="md:hidden p-2 hover:bg-gray-100/80 rounded-lg transition-colors"
           >
             {isMenuOpen ? (
               <X className="w-6 h-6 text-gray-700" />
@@ -195,8 +180,8 @@ export default function Header() {
                   key={link.href}
                   href={link.href}
                   onClick={() => setIsMenuOpen(false)}
-                  className={`font-medium py-2 px-4 rounded-lg transition-colors hover:bg-gray-100 ${
-                    pathname === link.href ? 'text-primary-600 bg-primary-50' : 'text-gray-700'
+                  className={`font-medium py-2 px-4 rounded-lg transition-colors hover:bg-gray-100/80 ${
+                    pathname === link.href ? 'text-primary-600 bg-primary-50/80' : 'text-gray-700'
                   }`}
                 >
                   {link.label}
@@ -207,39 +192,31 @@ export default function Header() {
                 <Link
                   href="/dashboard"
                   onClick={() => setIsMenuOpen(false)}
-                  className={`font-medium py-2 px-4 rounded-lg transition-colors hover:bg-gray-100 ${
-                    pathname === '/dashboard' ? 'text-primary-600 bg-primary-50' : 'text-gray-700'
+                  className={`font-medium py-2 px-4 rounded-lg transition-colors hover:bg-gray-100/80 ${
+                    pathname === '/dashboard' ? 'text-primary-600 bg-primary-50/80' : 'text-gray-700'
                   }`}
                 >
                   My Classes
                 </Link>
               )}
               
-              {/* Always show admin access in mobile menu */}
-              <Link
-                href="/admin"
-                onClick={() => setIsMenuOpen(false)}
-                className={`font-medium py-2 px-4 rounded-lg transition-colors hover:bg-gray-100 flex items-center gap-2 ${
-                  pathname === '/admin' ? 'text-primary-600 bg-primary-50' : 'text-gray-700'
-                }`}
-              >
-                {isAdmin ? (
-                  <>
-                    <Shield className="w-4 h-4" />
-                    Admin Dashboard
-                  </>
-                ) : (
-                  <>
-                    <Lock className="w-4 h-4" />
-                    Admin Login
-                  </>
-                )}
-              </Link>
+              {isAdmin && (
+                <Link
+                  href="/admin"
+                  onClick={() => setIsMenuOpen(false)}
+                  className={`font-medium py-2 px-4 rounded-lg transition-colors hover:bg-gray-100/80 flex items-center gap-2 ${
+                    pathname === '/admin' ? 'text-primary-600 bg-primary-50/80' : 'text-gray-700'
+                  }`}
+                >
+                  <Shield className="w-4 h-4" />
+                  Admin Dashboard
+                </Link>
+              )}
               
               <Link
                 href="/cart"
                 onClick={() => setIsMenuOpen(false)}
-                className="font-medium py-2 px-4 rounded-lg transition-colors hover:bg-gray-100 text-gray-700 flex items-center justify-between"
+                className="font-medium py-2 px-4 rounded-lg transition-colors hover:bg-gray-100/80 text-gray-700 flex items-center justify-between"
               >
                 Cart
                 {cartCount > 0 && (
@@ -255,7 +232,7 @@ export default function Header() {
                     handleLogout();
                     setIsMenuOpen(false);
                   }}
-                  className="font-medium py-2 px-4 rounded-lg transition-colors hover:bg-gray-100 text-gray-700 flex items-center gap-2 text-left"
+                  className="font-medium py-2 px-4 rounded-lg transition-colors hover:bg-gray-100/80 text-gray-700 flex items-center gap-2 text-left"
                 >
                   <LogOut className="w-5 h-5" />
                   Logout
@@ -264,7 +241,7 @@ export default function Header() {
                 <Link
                   href="/login"
                   onClick={() => setIsMenuOpen(false)}
-                  className="font-medium py-2 px-4 rounded-lg transition-colors hover:bg-gray-100 text-gray-700 flex items-center gap-2"
+                  className="font-medium py-2 px-4 rounded-lg transition-colors hover:bg-gray-100/80 text-gray-700 flex items-center gap-2"
                 >
                   <User className="w-5 h-5" />
                   Sign In

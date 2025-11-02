@@ -57,10 +57,10 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* Hero Image */}
+            {/* Hero Image - Video overlay removed */}
             <div className="relative animate-fade-in-up">
               <div className="relative z-10 rounded-2xl overflow-hidden shadow-2xl bg-gradient-to-br from-primary-100 to-primary-50">
-                {/* Replace with actual image */}
+                {/* Image without video overlay */}
                 <div className="aspect-[4/3] relative">
                   <Image 
                     src="/images/hero-cpr-training.png" 
@@ -71,16 +71,6 @@ export default function HomePage() {
                     quality={90}
                     priority
                   />
-                  {/* Overlay with play button */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent flex items-end p-6">
-                    <div className="flex items-center gap-3 text-white">
-                      <Play className="w-10 h-10 bg-white/20 backdrop-blur rounded-full p-2" />
-                      <div>
-                        <p className="font-semibold">Watch: How CPR Saves Lives</p>
-                        <p className="text-sm opacity-90">2 min video</p>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </div>
               {/* Decorative background element */}
@@ -137,7 +127,7 @@ export default function HomePage() {
                   including high-quality CPR and AED use.
                 </p>
                 <Link href="/classes" className="text-primary-600 font-semibold inline-flex items-center hover:gap-3 gap-2 transition-all">
-                  Learn More 
+                  See classes
                   <span>→</span>
                 </Link>
               </div>
@@ -177,7 +167,7 @@ export default function HomePage() {
                   save lives in emergency situations.
                 </p>
                 <Link href="/classes" className="text-primary-600 font-semibold inline-flex items-center hover:gap-3 gap-2 transition-all">
-                  Learn More 
+                  See classes 
                   <span>→</span>
                 </Link>
               </div>

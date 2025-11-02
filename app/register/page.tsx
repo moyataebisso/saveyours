@@ -30,11 +30,34 @@ export default function RegisterPage() {
 
     setLoading(true);
 
-    // For MVP, just show success message
-    // In production, implement proper user creation
-    toast.success('Registration successful! Please login.');
-    router.push('/login');
-    setLoading(false);
+    try {
+      // Call the NEW API route to create the user
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          password: formData.password
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        toast.error(data.error || 'Registration failed');
+        setLoading(false);
+        return;
+      }
+
+      toast.success('Registration successful! Please login.');
+      router.push('/login');
+    } catch (error) {
+      console.error('Registration error:', error);
+      toast.error('An error occurred during registration');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

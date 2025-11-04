@@ -78,11 +78,11 @@ export default function Header() {
         <div className="flex items-center justify-between">
           <Link href="/" className="flex items-center">
             <Image 
-              src="/images/logo.png" 
+              src="/images/SaveYours.png" 
               alt="SaveYours Logo" 
               width={800} 
               height={320} 
-              className="h-36 md:h-44 w-auto"
+              className="h-27 md:h-32 w-auto"
               priority
             />
           </Link>

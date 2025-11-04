@@ -10,11 +10,11 @@ export default function Footer() {
           <div>
             <div className="mb-4">
               <Image 
-                src="/images/logo.png" 
+                src="/images/SaveYours.png" 
                 alt="SaveYours Logo" 
                 width={500} 
                 height={200} 
-                className="h-40 w-auto"
+                className="h-27 w-32"
               />
             </div>
             <p className="text-gray-600 text-sm">

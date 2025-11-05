@@ -216,12 +216,19 @@ export const supabaseHelpers = {
     return { data, error }
   },
 
-  // Admin: Update inquiry status
+  // Admin: Update inquiry status - FIXED VERSION
   async updateInquiryStatus(inquiryId: string, status: 'new' | 'contacted' | 'resolved') {
+    console.log('=== SUPABASE HELPER: updateInquiryStatus ===');
+    console.log('Inquiry ID:', inquiryId);
+    console.log('New Status:', status);
+    
     const { data, error } = await supabase
       .from('inquiries')
       .update({ status })
       .eq('id', inquiryId)
+      .select()  // ⭐ ADDED THIS - Returns the updated row
+    
+    console.log('Database update result:', { data, error });
     
     return { data, error }
   }

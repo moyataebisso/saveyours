@@ -6,21 +6,21 @@ export default function HomePage() {
   return (
     <>
       {/* Hero Section - Enhanced with image */}
-      <section className="relative bg-gradient-to-br from-primary-50 via-beige-50 to-white py-20 overflow-hidden">
+      <section className="relative bg-gradient-to-br from-primary-50 via-beige-50 to-white py-8 overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-primary-100 rounded-full blur-3xl opacity-20 animate-pulse"></div>
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-beige-200 rounded-full blur-3xl opacity-20 animate-pulse"></div>
         
         <div className="container-custom relative z-10">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
+          <div className="grid lg:grid-cols-2 gap-6 items-center">
             {/* Left Content */}
             <div className="max-w-2xl">
               {/* New: Enrollment Badge */}
-              <div className="inline-flex items-center bg-white/80 backdrop-blur px-4 py-2 rounded-full mb-6">
+              <div className="inline-flex items-center bg-white/80 backdrop-blur px-4 py-2 rounded-full mb-4">
                 <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse mr-2"></span>
                 <span className="text-sm font-medium text-gray-700">Now Enrolling for Winter Classes</span>
               </div>
               
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 mb-6 animate-fade-in-up">
+              <h1 className="text-3xl md:text-4xl lg:text-4xl font-bold text-gray-900 mb-3 animate-fade-in-up">
                 A helping hand can be a{' '}
                 <span className="text-primary-600 relative inline-block">
                   saving hand
@@ -28,13 +28,13 @@ export default function HomePage() {
                 </span>
               </h1>
               
-              <p className="text-lg md:text-xl text-gray-600 mb-8 leading-relaxed animate-fade-in-up">
+              <p className="text-base md:text-lg text-gray-600 mb-4 leading-relaxed animate-fade-in-up">
                 To empower individuals and organizations with the confidence and skills to act 
                 decisively in emergencies through accessible, hands-on CPR and first aid training, 
                 because every moment matters.
               </p>
               
-              <div className="flex flex-col gap-3 animate-fade-in-up mb-8">
+              <div className="flex flex-col gap-2 animate-fade-in-up mb-4">
                 <Link href="/classes" className="btn btn-primary inline-block">
                   <Heart className="w-5 h-5 mr-2 inline" />
                   View Classes

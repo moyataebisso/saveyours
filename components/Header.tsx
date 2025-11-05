@@ -74,25 +74,25 @@ export default function Header() {
         ? 'bg-white/95 backdrop-blur-md shadow-lg' 
         : 'bg-white/80 backdrop-blur-sm shadow-sm'
     }`}>
-      <nav className="container-custom py-6">
+      <nav className="container-custom py-3">
         <div className="flex items-center justify-between">
           <Link href="/" className="flex items-center">
             <Image 
               src="/images/SaveYours.png" 
               alt="SaveYours Logo" 
-              width={800} 
-              height={320} 
-              className="h-27 md:h-32 w-auto"
+              width={600} 
+              height={240} 
+              className="h-20 md:h-24 w-auto"
               priority
             />
           </Link>
 
-          <div className="hidden md:flex items-center space-x-8">
+          <div className="hidden md:flex items-center space-x-6">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className={`font-medium transition-colors hover:text-primary-600 ${
+                className={`font-medium text-sm transition-colors hover:text-primary-600 ${
                   pathname === link.href ? 'text-primary-600' : 'text-gray-700'
                 }`}
               >
@@ -102,7 +102,7 @@ export default function Header() {
             {(userEmail || isAdmin) && (
               <Link
                 href="/dashboard"
-                className={`font-medium transition-colors hover:text-primary-600 ${
+                className={`font-medium text-sm transition-colors hover:text-primary-600 ${
                   pathname === '/dashboard' ? 'text-primary-600' : 'text-gray-700'
                 }`}
               >
@@ -112,7 +112,7 @@ export default function Header() {
             {isAdmin && (
               <Link
                 href="/admin"
-                className={`font-medium transition-colors hover:text-primary-600 flex items-center gap-1 ${
+                className={`font-medium text-sm transition-colors hover:text-primary-600 flex items-center gap-1 ${
                   pathname === '/admin' ? 'text-primary-600' : 'text-gray-700'
                 }`}
               >
@@ -122,9 +122,9 @@ export default function Header() {
             )}
           </div>
 
-          <div className="hidden md:flex items-center space-x-4">
+          <div className="hidden md:flex items-center space-x-3">
             <Link href="/cart" className="relative p-2 hover:bg-gray-100/80 rounded-lg transition-colors">
-              <ShoppingCart className="w-6 h-6 text-gray-700" />
+              <ShoppingCart className="w-5 h-5 text-gray-700" />
               {cartCount > 0 && (
                 <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary-600 text-white text-xs rounded-full flex items-center justify-center">
                   {cartCount}
@@ -133,8 +133,8 @@ export default function Header() {
             </Link>
             
             {isAdmin || userEmail ? (
-              <div className="flex items-center space-x-3">
-                <span className="text-sm text-gray-600">
+              <div className="flex items-center space-x-2">
+                <span className="text-xs text-gray-600">
                   {isAdmin ? 'Admin' : userEmail}
                 </span>
                 <button
@@ -142,20 +142,20 @@ export default function Header() {
                   className="p-2 hover:bg-gray-100/80 rounded-lg transition-colors"
                   title="Logout"
                 >
-                  <LogOut className="w-5 h-5 text-gray-700" />
+                  <LogOut className="w-4 h-4 text-gray-700" />
                 </button>
               </div>
             ) : (
               <Link 
                 href="/login" 
-                className="flex items-center space-x-2 px-4 py-2 text-gray-700 hover:bg-gray-100/80 rounded-lg transition-colors"
+                className="flex items-center space-x-2 px-3 py-2 text-gray-700 hover:bg-gray-100/80 rounded-lg transition-colors text-sm"
               >
-                <User className="w-5 h-5" />
+                <User className="w-4 h-4" />
                 <span>Sign In</span>
               </Link>
             )}
             
-            <Link href="/classes" className="btn btn-primary text-sm">
+            <Link href="/classes" className="btn btn-primary text-sm px-4 py-2">
               Book Now
             </Link>
           </div>

@@ -2,7 +2,7 @@
 import { supabase } from '@/lib/supabase';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Calendar, Users, DollarSign, MessageSquare, Plus, Edit, Trash2, CheckCircle, X } from 'lucide-react';
+import { Calendar, Users, DollarSign, MessageSquare, Plus, Edit, Trash2, CheckCircle, X, Clock, Phone, Mail } from 'lucide-react';
 import { supabaseHelpers } from '@/lib/supabase';
 import { toast } from '@/components/ui/Toaster';
 import type { Enrollment, ClassSession, Inquiry, Class } from '@/types';
@@ -33,18 +33,15 @@ export default function AdminDashboard() {
     const authTime = localStorage.getItem('adminAuthTime');
     
     if (isAdmin === 'true' && authTime) {
-      // Check if session has expired
       const sessionAge = Date.now() - parseInt(authTime);
       
       if (sessionAge > SESSION_TIMEOUT) {
-        // Session expired
         console.log('Admin session expired');
         localStorage.removeItem('adminAuthenticated');
         localStorage.removeItem('adminAuthTime');
         setIsAuthenticated(false);
         toast.info('Session expired. Please login again.');
       } else {
-        // Session still valid
         const remainingTime = SESSION_TIMEOUT - sessionAge;
         const remainingMinutes = Math.floor(remainingTime / 60000);
         console.log(`Admin session valid. ${remainingMinutes} minutes remaining.`);
@@ -60,7 +57,6 @@ export default function AdminDashboard() {
     e.preventDefault();
     
     if (password === ADMIN_PASSWORD) {
-      // Set authentication with timestamp
       localStorage.setItem('adminAuthenticated', 'true');
       localStorage.setItem('adminAuthTime', Date.now().toString());
       setIsAuthenticated(true);
@@ -81,7 +77,6 @@ export default function AdminDashboard() {
   const loadData = async () => {
     setLoading(true);
     try {
-      // Get ALL sessions for admin view
       const { data: sessionsData, error: sessionsError } = await supabase
         .from('class_sessions')
         .select('*, class:classes(*)')
@@ -99,7 +94,6 @@ export default function AdminDashboard() {
         setSessions(sessionsData || []);
       }
 
-      // Load other data
       const [enrollmentsData, inquiriesData, classesData] = await Promise.all([
         supabaseHelpers.getAllEnrollments(),
         supabaseHelpers.getInquiries(),
@@ -117,7 +111,6 @@ export default function AdminDashboard() {
   };
 
   const markEnrollmentComplete = async (enrollmentId: string) => {
-    // First check current status
     const { data: enrollment } = await supabase
       .from('enrollments')
       .select('status')
@@ -145,7 +138,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // SIMPLIFIED CANCEL FUNCTION - Direct approach without corruption handling
   const cancelSession = async (sessionId: string) => {
     console.log('=== CANCEL SESSION ===');
     console.log('Session ID to cancel:', sessionId);
@@ -153,7 +145,6 @@ export default function AdminDashboard() {
     setCancellingSession(sessionId);
     
     try {
-      // Simple, direct update - no fancy error handling
       const { data, error } = await supabase
         .from('class_sessions')
         .update({ status: 'cancelled' })
@@ -165,7 +156,6 @@ export default function AdminDashboard() {
       if (error) {
         console.error('Supabase error:', error);
         
-        // Check if it's a permission issue
         if (error.message?.includes('permission') || error.message?.includes('RLS')) {
           toast.error('Permission denied. Check Row Level Security policies.');
         } else {
@@ -178,7 +168,6 @@ export default function AdminDashboard() {
         console.log('Session cancelled successfully');
         toast.success('Session cancelled successfully');
         
-        // Update local state immediately so UI reflects the change
         setSessions(prevSessions => 
           prevSessions.map(session => 
             session.id === sessionId
@@ -187,7 +176,6 @@ export default function AdminDashboard() {
           )
         );
         
-        // Also cancel related enrollments (don't wait for this)
         const cancelEnrollments = async () => {
           try {
             await supabase
@@ -215,12 +203,33 @@ export default function AdminDashboard() {
   };
 
   const updateInquiryStatus = async (inquiryId: string, status: 'contacted' | 'resolved') => {
-    const { error } = await supabaseHelpers.updateInquiryStatus(inquiryId, status);
+    console.log('=== UPDATE INQUIRY STATUS ===');
+    console.log('Inquiry ID:', inquiryId);
+    console.log('New Status:', status);
+    
+    // First update the local state optimistically
+    setInquiries(prevInquiries => 
+      prevInquiries.map(inq => 
+        inq.id === inquiryId 
+          ? { ...inq, status } 
+          : inq
+      )
+    );
+    
+    // Then update the database
+    const { error, data } = await supabaseHelpers.updateInquiryStatus(inquiryId, status);
+    
+    console.log('Update result - Error:', error, 'Data:', data);
+    
     if (!error) {
-      toast.success('Inquiry updated');
-      loadData();
+      toast.success(`Inquiry marked as ${status}`);
+      // Force reload data from database to ensure sync
+      await loadData();
     } else {
       toast.error('Failed to update inquiry');
+      console.error('Error updating inquiry:', error);
+      // Revert optimistic update on error
+      await loadData();
     }
   };
 
@@ -262,9 +271,9 @@ export default function AdminDashboard() {
     );
   }
 
-  // Calculate stats - only count scheduled sessions as upcoming
+  // Calculate stats
   const totalRevenue = enrollments
-    .filter(e => e.payment_status === 'paid')
+    .filter(e => e.payment_status === 'paid' && e.status !== 'cancelled')
     .reduce((sum, e) => sum + (e.amount_paid || 0), 0);
   const upcomingSessions = sessions.filter(s => {
     const sessionDate = new Date(s.date);
@@ -272,8 +281,13 @@ export default function AdminDashboard() {
     today.setHours(0, 0, 0, 0);
     return sessionDate >= today && s.status === 'scheduled';
   }).length;
-  const totalEnrollments = enrollments.length;
+  const totalEnrollments = enrollments.filter(e => e.status !== 'cancelled').length;
   const newInquiries = inquiries.filter(i => i.status === 'new').length;
+
+  // Organize inquiries by status
+  const newInquiriesList = inquiries.filter(i => i.status === 'new');
+  const contactedInquiries = inquiries.filter(i => i.status === 'contacted');
+  const resolvedInquiries = inquiries.filter(i => i.status === 'resolved');
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -346,7 +360,10 @@ export default function AdminDashboard() {
               <div>
                 <h2 className="text-xl font-semibold mb-4">Recent Activity</h2>
                 <div className="space-y-4">
-                  {enrollments.slice(0, 5).map(enrollment => (
+                  {enrollments
+                    .filter(enrollment => enrollment.status !== 'cancelled') // Hide cancelled enrollments
+                    .slice(0, 5)
+                    .map(enrollment => (
                     <div key={enrollment.id} className="flex justify-between items-center py-2 border-b">
                       <div>
                         <p className="font-medium">{enrollment.guest_name || enrollment.user?.full_name}</p>
@@ -363,6 +380,9 @@ export default function AdminDashboard() {
                       </span>
                     </div>
                   ))}
+                  {enrollments.filter(e => e.status !== 'cancelled').length === 0 && (
+                    <p className="text-gray-500 italic">No active enrollments</p>
+                  )}
                 </div>
               </div>
             )}
@@ -402,7 +422,7 @@ export default function AdminDashboard() {
                     </thead>
                     <tbody>
                       {sessions
-                        .filter(session => session.status !== 'cancelled') // Hide cancelled sessions
+                        .filter(session => session.status !== 'cancelled')
                         .map(session => (
                         <tr key={session.id} className="border-b">
                           <td className="px-4 py-2">
@@ -469,7 +489,9 @@ export default function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {enrollments.map(enrollment => (
+                      {enrollments
+                        .filter(enrollment => enrollment.status !== 'cancelled') // Hide cancelled enrollments
+                        .map(enrollment => (
                         <tr key={enrollment.id} className="border-b">
                           <td className="px-4 py-2">
                             {enrollment.guest_name || enrollment.user?.full_name}
@@ -489,8 +511,6 @@ export default function AdminDashboard() {
                                 ? 'bg-green-100 text-green-800'
                                 : enrollment.status === 'confirmed'
                                 ? 'bg-blue-100 text-blue-800'
-                                : enrollment.status === 'cancelled'
-                                ? 'bg-red-100 text-red-800'
                                 : 'bg-gray-100 text-gray-800'
                             }`}>
                               {enrollment.status}
@@ -504,8 +524,6 @@ export default function AdminDashboard() {
                               >
                                 Mark Complete
                               </button>
-                            ) : enrollment.status === 'cancelled' ? (
-                              <span className="text-gray-400">Cancelled</span>
                             ) : enrollment.status === 'completed' ? (
                               <span className="text-green-600">✓ Completed</span>
                             ) : null}
@@ -515,59 +533,121 @@ export default function AdminDashboard() {
                     </tbody>
                   </table>
                 </div>
+
+                {/* Cancelled Enrollments - Collapsible Section */}
+                {enrollments.filter(e => e.status === 'cancelled').length > 0 && (
+                  <details className="mt-6 border rounded-lg">
+                    <summary className="px-4 py-3 cursor-pointer bg-gray-50 hover:bg-gray-100 font-medium text-gray-700">
+                      🗑️ Cancelled Enrollments ({enrollments.filter(e => e.status === 'cancelled').length})
+                    </summary>
+                    <div className="p-4">
+                      <table className="w-full">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-2 text-left">Student</th>
+                            <th className="px-4 py-2 text-left">Email</th>
+                            <th className="px-4 py-2 text-left">Class</th>
+                            <th className="px-4 py-2 text-left">Date</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {enrollments
+                            .filter(enrollment => enrollment.status === 'cancelled')
+                            .map(enrollment => (
+                            <tr key={enrollment.id} className="border-b opacity-60">
+                              <td className="px-4 py-2">
+                                {enrollment.guest_name || enrollment.user?.full_name}
+                              </td>
+                              <td className="px-4 py-2">
+                                {enrollment.guest_email || enrollment.user?.email}
+                              </td>
+                              <td className="px-4 py-2">
+                                {enrollment.session?.class?.name}
+                              </td>
+                              <td className="px-4 py-2">
+                                {enrollment.session?.date && new Date(enrollment.session.date).toLocaleDateString()}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </details>
+                )}
               </div>
             )}
 
             {activeTab === 'inquiries' && (
               <div>
-                <h2 className="text-xl font-semibold mb-4">Contact Inquiries</h2>
-                <div className="space-y-4">
-                  {inquiries.map(inquiry => (
-                    <div key={inquiry.id} className="border rounded-lg p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <p className="font-semibold">{inquiry.name}</p>
-                          <p className="text-sm text-gray-600">{inquiry.email}</p>
-                          {inquiry.phone && (
-                            <p className="text-sm text-gray-600">{inquiry.phone}</p>
-                          )}
-                        </div>
-                        <span className={`px-2 py-1 rounded text-xs ${
-                          inquiry.status === 'new'
-                            ? 'bg-red-100 text-red-800'
-                            : inquiry.status === 'contacted'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-green-100 text-green-800'
-                        }`}>
-                          {inquiry.status}
-                        </span>
-                      </div>
-                      <p className="text-gray-700 mb-2">{inquiry.message}</p>
-                      {inquiry.service_type && (
-                        <p className="text-sm text-gray-600 mb-2">
-                          Service: {inquiry.service_type}
-                        </p>
-                      )}
-                      <div className="flex gap-2">
-                        {inquiry.status === 'new' && (
-                          <button
-                            onClick={() => updateInquiryStatus(inquiry.id, 'contacted')}
-                            className="text-sm bg-yellow-600 text-white px-3 py-1 rounded hover:bg-yellow-700"
-                          >
-                            Mark Contacted
-                          </button>
-                        )}
-                        {inquiry.status !== 'resolved' && (
-                          <button
-                            onClick={() => updateInquiryStatus(inquiry.id, 'resolved')}
-                            className="text-sm bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
-                          >
-                            Mark Resolved
-                          </button>
-                        )}
-                      </div>
+                <h2 className="text-xl font-semibold mb-6">Contact Inquiries</h2>
+                
+                {/* NEW INQUIRIES SECTION */}
+                <div className="mb-8">
+                  <div className="flex items-center gap-2 mb-4">
+                    <MessageSquare className="w-5 h-5 text-red-600" />
+                    <h3 className="text-lg font-semibold text-red-600">
+                      New Inquiries ({newInquiriesList.length})
+                    </h3>
+                  </div>
+                  {newInquiriesList.length === 0 ? (
+                    <p className="text-gray-500 italic">No new inquiries</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {newInquiriesList.map(inquiry => (
+                        <InquiryCard 
+                          key={inquiry.id} 
+                          inquiry={inquiry} 
+                          onUpdate={updateInquiryStatus}
+                        />
+                      ))}
                     </div>
-                  ))}
+                  )}
+                </div>
+
+                {/* CONTACTED INQUIRIES SECTION */}
+                <div className="mb-8">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Clock className="w-5 h-5 text-yellow-600" />
+                    <h3 className="text-lg font-semibold text-yellow-600">
+                      Contacted ({contactedInquiries.length})
+                    </h3>
+                  </div>
+                  {contactedInquiries.length === 0 ? (
+                    <p className="text-gray-500 italic">No contacted inquiries</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {contactedInquiries.map(inquiry => (
+                        <InquiryCard 
+                          key={inquiry.id} 
+                          inquiry={inquiry} 
+                          onUpdate={updateInquiryStatus}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* RESOLVED INQUIRIES SECTION */}
+                <div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    <h3 className="text-lg font-semibold text-green-600">
+                      Resolved ({resolvedInquiries.length})
+                    </h3>
+                  </div>
+                  {resolvedInquiries.length === 0 ? (
+                    <p className="text-gray-500 italic">No resolved inquiries</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {resolvedInquiries.map(inquiry => (
+                        <InquiryCard 
+                          key={inquiry.id} 
+                          inquiry={inquiry} 
+                          onUpdate={updateInquiryStatus}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -580,6 +660,82 @@ export default function AdminDashboard() {
         setShowAddSession(false);
         loadData();
       }} />}
+    </div>
+  );
+}
+
+// Inquiry Card Component
+function InquiryCard({ 
+  inquiry, 
+  onUpdate 
+}: { 
+  inquiry: Inquiry; 
+  onUpdate: (id: string, status: 'contacted' | 'resolved') => void;
+}) {
+  return (
+    <div className="border rounded-lg p-4 bg-white shadow-sm hover:shadow-md transition-shadow">
+      <div className="flex justify-between items-start mb-3">
+        <div className="flex-1">
+          <p className="font-semibold text-lg">{inquiry.name}</p>
+          <div className="flex flex-col gap-1 mt-2">
+            <div className="flex items-center text-sm text-gray-600">
+              <Mail className="w-4 h-4 mr-2" />
+              <a href={`mailto:${inquiry.email}`} className="hover:text-primary-600">
+                {inquiry.email}
+              </a>
+            </div>
+            {inquiry.phone && (
+              <div className="flex items-center text-sm text-gray-600">
+                <Phone className="w-4 h-4 mr-2" />
+                <a href={`tel:${inquiry.phone}`} className="hover:text-primary-600">
+                  {inquiry.phone}
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+          inquiry.status === 'new'
+            ? 'bg-red-100 text-red-800'
+            : inquiry.status === 'contacted'
+            ? 'bg-yellow-100 text-yellow-800'
+            : 'bg-green-100 text-green-800'
+        }`}>
+          {inquiry.status.toUpperCase()}
+        </span>
+      </div>
+      
+      <div className="bg-gray-50 p-3 rounded mb-3">
+        <p className="text-gray-700 text-sm">{inquiry.message}</p>
+      </div>
+      
+      {inquiry.service_type && (
+        <p className="text-sm text-gray-600 mb-3">
+          <span className="font-medium">Service Requested:</span> {inquiry.service_type}
+        </p>
+      )}
+      
+      <div className="flex gap-2">
+        {inquiry.status === 'new' && (
+          <button
+            onClick={() => onUpdate(inquiry.id, 'contacted')}
+            className="text-sm bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors"
+          >
+            Mark as Contacted
+          </button>
+        )}
+        {inquiry.status !== 'resolved' && (
+          <button
+            onClick={() => onUpdate(inquiry.id, 'resolved')}
+            className="text-sm bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+          >
+            Mark as Resolved
+          </button>
+        )}
+        {inquiry.status === 'resolved' && (
+          <span className="text-sm text-green-600 font-medium">✓ Resolved</span>
+        )}
+      </div>
     </div>
   );
 }

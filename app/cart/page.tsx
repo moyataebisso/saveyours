@@ -265,7 +265,7 @@ export default function CartPage() {
                     <div className="flex-1">
                       <h3 className="font-medium">{item.class.name}</h3>
                       <p className="text-sm text-gray-600 mt-1">
-                        {new Date(item.date).toLocaleDateString('en-US', {
+                        {new Date(item.date + 'T00:00:00').toLocaleDateString('en-US', {
                           month: 'short',
                           day: 'numeric',
                           year: 'numeric'
@@ -323,7 +323,7 @@ export default function CartPage() {
                   <div key={item.id} className="pb-3 border-b last:border-0">
                     <p className="font-medium text-sm">{item.class.name}</p>
                     <p className="text-xs text-gray-600 mt-1">
-                      {new Date(item.date).toLocaleDateString()} at {item.start_time}
+                      {new Date(item.date + 'T00:00:00').toLocaleDateString()} at {item.start_time}
                     </p>
                     <p className="text-sm font-semibold mt-1">${item.class.price}</p>
                   </div>

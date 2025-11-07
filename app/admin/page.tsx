@@ -2,7 +2,7 @@
 import { supabase } from '@/lib/supabase';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Calendar, Users, DollarSign, MessageSquare, Plus, Edit, Trash2, CheckCircle, X, Clock, Phone, Mail } from 'lucide-react';
+import { Calendar, Users, DollarSign, MessageSquare, Plus, Edit, Trash2, CheckCircle, X, Clock, Phone, Mail, Save } from 'lucide-react';
 import { supabaseHelpers } from '@/lib/supabase';
 import { toast } from '@/components/ui/Toaster';
 import type { Enrollment, ClassSession, Inquiry, Class } from '@/types';
@@ -18,6 +18,7 @@ export default function AdminDashboard() {
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddSession, setShowAddSession] = useState(false);
+  const [editingSession, setEditingSession] = useState<ClassSession | null>(null);
   const [cancellingSession, setCancellingSession] = useState<string | null>(null);
 
   // Hardcoded password
@@ -138,6 +139,23 @@ export default function AdminDashboard() {
     }
   };
 
+  const restoreEnrollment = async (enrollmentId: string, sessionId: string) => {
+    console.log('=== RESTORE ENROLLMENT ===');
+    console.log('Enrollment ID:', enrollmentId);
+    console.log('Session ID:', sessionId);
+    
+    const { data, error } = await supabaseHelpers.restoreEnrollment(enrollmentId, sessionId);
+    
+    if (error) {
+      console.error('Error:', error);
+      toast.error(error.message || 'Failed to restore enrollment');
+    } else {
+      console.log('Enrollment restored successfully');
+      toast.success('Enrollment restored successfully');
+      loadData();
+    }
+  };
+
   const cancelSession = async (sessionId: string) => {
     console.log('=== CANCEL SESSION ===');
     console.log('Session ID to cancel:', sessionId);
@@ -207,7 +225,6 @@ export default function AdminDashboard() {
     console.log('Inquiry ID:', inquiryId);
     console.log('New Status:', status);
     
-    // First update the local state optimistically
     setInquiries(prevInquiries => 
       prevInquiries.map(inq => 
         inq.id === inquiryId 
@@ -216,19 +233,16 @@ export default function AdminDashboard() {
       )
     );
     
-    // Then update the database
     const { error, data } = await supabaseHelpers.updateInquiryStatus(inquiryId, status);
     
     console.log('Update result - Error:', error, 'Data:', data);
     
     if (!error) {
       toast.success(`Inquiry marked as ${status}`);
-      // Force reload data from database to ensure sync
       await loadData();
     } else {
       toast.error('Failed to update inquiry');
       console.error('Error updating inquiry:', error);
-      // Revert optimistic update on error
       await loadData();
     }
   };
@@ -361,7 +375,7 @@ export default function AdminDashboard() {
                 <h2 className="text-xl font-semibold mb-4">Recent Activity</h2>
                 <div className="space-y-4">
                   {enrollments
-                    .filter(enrollment => enrollment.status !== 'cancelled') // Hide cancelled enrollments
+                    .filter(enrollment => enrollment.status !== 'cancelled')
                     .slice(0, 5)
                     .map(enrollment => (
                     <div key={enrollment.id} className="flex justify-between items-center py-2 border-b">
@@ -426,7 +440,7 @@ export default function AdminDashboard() {
                         .map(session => (
                         <tr key={session.id} className="border-b">
                           <td className="px-4 py-2">
-                            {new Date(session.date).toLocaleDateString()}
+                            {new Date(session.date + 'T00:00:00').toLocaleDateString()}
                           </td>
                           <td className="px-4 py-2">{session.class?.name}</td>
                           <td className="px-4 py-2">
@@ -449,21 +463,29 @@ export default function AdminDashboard() {
                             </span>
                           </td>
                           <td className="px-4 py-2">
-                            {session.status === 'scheduled' ? (
-                              <button
-                                onClick={() => cancelSession(session.id)}
-                                disabled={cancellingSession === session.id}
-                                className={`text-red-600 hover:text-red-800 ${
-                                  cancellingSession === session.id ? 'opacity-50 cursor-not-allowed' : ''
-                                }`}
-                              >
-                                {cancellingSession === session.id ? 'Cancelling...' : 'Cancel'}
-                              </button>
-                            ) : session.status === 'cancelled' ? (
-                              <span className="text-gray-400">Cancelled</span>
-                            ) : (
-                              <span className="text-gray-400">-</span>
-                            )}
+                            <div className="flex gap-2">
+                              {session.status === 'scheduled' && (
+                                <>
+                                  <button
+                                    onClick={() => setEditingSession(session)}
+                                    className="text-blue-600 hover:text-blue-800"
+                                    title="Edit session"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => cancelSession(session.id)}
+                                    disabled={cancellingSession === session.id}
+                                    className={`text-red-600 hover:text-red-800 ${
+                                      cancellingSession === session.id ? 'opacity-50 cursor-not-allowed' : ''
+                                    }`}
+                                    title="Cancel session"
+                                  >
+                                    {cancellingSession === session.id ? '...' : <Trash2 className="w-4 h-4" />}
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -490,7 +512,7 @@ export default function AdminDashboard() {
                     </thead>
                     <tbody>
                       {enrollments
-                        .filter(enrollment => enrollment.status !== 'cancelled') // Hide cancelled enrollments
+                        .filter(enrollment => enrollment.status !== 'cancelled')
                         .map(enrollment => (
                         <tr key={enrollment.id} className="border-b">
                           <td className="px-4 py-2">
@@ -503,7 +525,7 @@ export default function AdminDashboard() {
                             {enrollment.session?.class?.name}
                           </td>
                           <td className="px-4 py-2">
-                            {enrollment.session?.date && new Date(enrollment.session.date).toLocaleDateString()}
+                            {enrollment.session?.date && new Date(enrollment.session.date + 'T00:00:00').toLocaleDateString()}
                           </td>
                           <td className="px-4 py-2">
                             <span className={`px-2 py-1 rounded text-xs ${
@@ -534,7 +556,7 @@ export default function AdminDashboard() {
                   </table>
                 </div>
 
-                {/* Cancelled Enrollments - Collapsible Section */}
+                {/* Cancelled Enrollments - Collapsible Section with Restore */}
                 {enrollments.filter(e => e.status === 'cancelled').length > 0 && (
                   <details className="mt-6 border rounded-lg">
                     <summary className="px-4 py-3 cursor-pointer bg-gray-50 hover:bg-gray-100 font-medium text-gray-700">
@@ -548,13 +570,14 @@ export default function AdminDashboard() {
                             <th className="px-4 py-2 text-left">Email</th>
                             <th className="px-4 py-2 text-left">Class</th>
                             <th className="px-4 py-2 text-left">Date</th>
+                            <th className="px-4 py-2 text-left">Actions</th>
                           </tr>
                         </thead>
                         <tbody>
                           {enrollments
                             .filter(enrollment => enrollment.status === 'cancelled')
                             .map(enrollment => (
-                            <tr key={enrollment.id} className="border-b opacity-60">
+                            <tr key={enrollment.id} className="border-b">
                               <td className="px-4 py-2">
                                 {enrollment.guest_name || enrollment.user?.full_name}
                               </td>
@@ -565,7 +588,16 @@ export default function AdminDashboard() {
                                 {enrollment.session?.class?.name}
                               </td>
                               <td className="px-4 py-2">
-                                {enrollment.session?.date && new Date(enrollment.session.date).toLocaleDateString()}
+                                {enrollment.session?.date && new Date(enrollment.session.date + 'T00:00:00').toLocaleDateString()}
+                              </td>
+                              <td className="px-4 py-2">
+                                <button
+                                  onClick={() => restoreEnrollment(enrollment.id, enrollment.session_id)}
+                                  className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                  title="Restore this enrollment"
+                                >
+                                  🔄 Restore
+                                </button>
                               </td>
                             </tr>
                           ))}
@@ -658,6 +690,12 @@ export default function AdminDashboard() {
       {/* Add Session Modal */}
       {showAddSession && <AddSessionModal classes={classes} onClose={() => {
         setShowAddSession(false);
+        loadData();
+      }} />}
+
+      {/* Edit Session Modal */}
+      {editingSession && <EditSessionModal session={editingSession} classes={classes} onClose={() => {
+        setEditingSession(null);
         loadData();
       }} />}
     </div>
@@ -753,6 +791,7 @@ function AddSessionModal({ classes, onClose }: { classes: Class[], onClose: () =
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('📅 Submitting session with date:', formData.date);
     const { error } = await supabaseHelpers.createClassSession(formData);
     if (!error) {
       toast.success('Session created successfully');
@@ -828,6 +867,134 @@ function AddSessionModal({ classes, onClose }: { classes: Class[], onClose: () =
               className="flex-1 bg-primary-600 text-white py-2 rounded-lg hover:bg-primary-700"
             >
               Create Session
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Edit Session Modal Component
+function EditSessionModal({ session, classes, onClose }: { session: ClassSession, classes: Class[], onClose: () => void }) {
+  const [formData, setFormData] = useState({
+    class_id: session.class_id,
+    date: session.date,
+    start_time: session.start_time,
+    end_time: session.end_time,
+    location: session.location || '5450 W 41st St, Minneapolis, MN 55416',
+    max_capacity: session.max_capacity
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    console.log('📅 Updating session with date:', formData.date);
+    const { error } = await supabaseHelpers.updateClassSession(session.id, formData);
+    if (!error) {
+      toast.success('Session updated successfully');
+      onClose();
+    } else {
+      toast.error('Failed to update session');
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold">Edit Session</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Class</label>
+            <select
+              required
+              value={formData.class_id}
+              onChange={(e) => setFormData({...formData, class_id: e.target.value})}
+              className="w-full px-3 py-2 border rounded-lg"
+            >
+              {classes.map(cls => (
+                <option key={cls.id} value={cls.id}>{cls.name}</option>
+              ))}
+            </select>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium mb-1">Date</label>
+            <input
+              type="date"
+              required
+              value={formData.date}
+              onChange={(e) => setFormData({...formData, date: e.target.value})}
+              className="w-full px-3 py-2 border rounded-lg"
+            />
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Start Time</label>
+              <input
+                type="time"
+                required
+                value={formData.start_time}
+                onChange={(e) => setFormData({...formData, start_time: e.target.value})}
+                className="w-full px-3 py-2 border rounded-lg"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">End Time</label>
+              <input
+                type="time"
+                required
+                value={formData.end_time}
+                onChange={(e) => setFormData({...formData, end_time: e.target.value})}
+                className="w-full px-3 py-2 border rounded-lg"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Location</label>
+            <input
+              type="text"
+              required
+              value={formData.location}
+              onChange={(e) => setFormData({...formData, location: e.target.value})}
+              className="w-full px-3 py-2 border rounded-lg"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Max Capacity</label>
+            <input
+              type="number"
+              required
+              min="1"
+              max="50"
+              value={formData.max_capacity}
+              onChange={(e) => setFormData({...formData, max_capacity: parseInt(e.target.value)})}
+              className="w-full px-3 py-2 border rounded-lg"
+            />
+          </div>
+          
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              className="flex-1 bg-primary-600 text-white py-2 rounded-lg hover:bg-primary-700 flex items-center justify-center gap-2"
+            >
+              <Save className="w-4 h-4" />
+              Save Changes
             </button>
             <button
               type="button"

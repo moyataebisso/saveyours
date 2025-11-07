@@ -23,7 +23,6 @@ export const supabaseHelpers = {
         *,
         class:classes(*)
       `)
-      // .gte('date', new Date().toISOString().split('T')[0])  // Comment this out
       .eq('status', 'scheduled')
       .order('date', { ascending: true })
     
@@ -114,23 +113,45 @@ export const supabaseHelpers = {
     return { data: data as Enrollment[] | null, error }
   },
 
-  // Admin: Create new class session
+  // Admin: Create new class session - FIXED DATE HANDLING
   async createClassSession(sessionData: SessionData) {
+    console.log('📅 Creating session with date:', sessionData.date);
+    
+    // Ensure date is in YYYY-MM-DD format without timezone conversion
+    // This prevents the "day before" bug
+    const dateOnly = sessionData.date.split('T')[0];
+    console.log('📅 Date formatted as:', dateOnly);
+    
     const { data, error } = await supabase
       .from('class_sessions')
       .insert([{
         ...sessionData,
+        date: dateOnly, // Use date-only format
         status: sessionData.status || 'scheduled',
         current_enrollment: 0
       }])
       .select()
       .single()
     
+    if (error) {
+      console.error('❌ Error creating session:', error);
+    } else {
+      console.log('✅ Session created with date:', data?.date);
+    }
+    
     return { data: data as ClassSession | null, error }
   },
 
-  // Admin: Update class session
+  // Admin: Update class session - FIXED DATE HANDLING
   async updateClassSession(sessionId: string, updates: Partial<SessionData>) {
+    console.log('📅 Updating session with:', updates);
+    
+    // If date is being updated, ensure proper format
+    if (updates.date) {
+      updates.date = updates.date.split('T')[0];
+      console.log('📅 Date formatted as:', updates.date);
+    }
+    
     const { data, error } = await supabase
       .from('class_sessions')
       .update(updates)
@@ -138,29 +159,33 @@ export const supabaseHelpers = {
       .select()
       .single()
     
+    if (error) {
+      console.error('❌ Error updating session:', error);
+    } else {
+      console.log('✅ Session updated');
+    }
+    
     return { data: data as ClassSession | null, error }
   },
 
-  // Admin: Cancel class session - FIXED VERSION
+  // Admin: Cancel class session
   async cancelClassSession(sessionId: string) {
     console.log('Cancelling session:', sessionId);
     
     try {
-      // Update without using .single() to avoid the JSON coercion error
       const { data, error } = await supabase
         .from('class_sessions')
         .update({ 
           status: 'cancelled'
         })
         .eq('id', sessionId)
-        .select();  // Remove .single() here
+        .select();
       
       if (error) {
         console.error('Error cancelling session:', error);
         return { data: null, error };
       }
       
-      // Check if update was successful
       if (data && data.length > 0) {
         console.log('Session cancelled successfully:', data[0]);
         
@@ -187,6 +212,62 @@ export const supabaseHelpers = {
         error: { message: 'Unexpected error occurred', code: 'UNKNOWN' } 
       };
     }
+  },
+
+  // Admin: Restore cancelled enrollment - NEW FEATURE
+  async restoreEnrollment(enrollmentId: string, sessionId: string) {
+    console.log('🔄 Restoring enrollment:', enrollmentId);
+    
+    // First, check if session is still available
+    const { data: session } = await supabase
+      .from('class_sessions')
+      .select('current_enrollment, max_capacity, status')
+      .eq('id', sessionId)
+      .single();
+
+    if (!session) {
+      console.error('❌ Session not found');
+      return { data: null, error: { message: 'Session not found' } };
+    }
+
+    if (session.status === 'cancelled') {
+      console.error('❌ Session is cancelled');
+      return { data: null, error: { message: 'Cannot restore - session is cancelled' } };
+    }
+
+    if (session.current_enrollment >= session.max_capacity) {
+      console.error('❌ Session is full');
+      return { data: null, error: { message: 'Cannot restore - session is full' } };
+    }
+
+    // Restore the enrollment
+    const { data, error } = await supabase
+      .from('enrollments')
+      .update({ 
+        status: 'confirmed'
+      })
+      .eq('id', enrollmentId)
+      .select();
+
+    if (!error && data) {
+      console.log('✅ Enrollment restored');
+      
+      // Increment session enrollment count
+      const newEnrollment = session.current_enrollment + 1;
+      await supabase
+        .from('class_sessions')
+        .update({ 
+          current_enrollment: newEnrollment,
+          status: newEnrollment >= session.max_capacity ? 'full' : 'scheduled'
+        })
+        .eq('id', sessionId);
+      
+      console.log('✅ Session enrollment count updated');
+    } else {
+      console.error('❌ Error restoring enrollment:', error);
+    }
+
+    return { data: data && data[0], error };
   },
 
   // Get user enrollments
@@ -216,7 +297,7 @@ export const supabaseHelpers = {
     return { data, error }
   },
 
-  // Admin: Update inquiry status - FIXED VERSION
+  // Admin: Update inquiry status
   async updateInquiryStatus(inquiryId: string, status: 'new' | 'contacted' | 'resolved') {
     console.log('=== SUPABASE HELPER: updateInquiryStatus ===');
     console.log('Inquiry ID:', inquiryId);
@@ -226,7 +307,7 @@ export const supabaseHelpers = {
       .from('inquiries')
       .update({ status })
       .eq('id', inquiryId)
-      .select()  // ⭐ ADDED THIS - Returns the updated row
+      .select()
     
     console.log('Database update result:', { data, error });
     

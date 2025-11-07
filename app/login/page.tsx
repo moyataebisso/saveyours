@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { toast } from '@/components/ui/Toaster';
 
 export default function LoginPage() {
@@ -112,13 +111,6 @@ export default function LoginPage() {
               {loading ? 'Logging in...' : 'Login'}
             </button>
           </form>
-          
-          <p className="text-center mt-4 text-sm text-gray-600">
-            Do not have an account?{' '}
-            <Link href="/register" className="text-primary-600 hover:text-primary-700">
-              Register
-            </Link>
-          </p>
         </div>
       </div>
     </div>

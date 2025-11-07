@@ -263,7 +263,7 @@ export default function ClassesPage() {
                   <div className="space-y-2 text-sm text-gray-600 mb-4">
                     <div className="flex items-center">
                       <Calendar className="w-4 h-4 mr-2" />
-                      {new Date(session.date).toLocaleDateString('en-US', { 
+                      {new Date(session.date + 'T00:00:00').toLocaleDateString('en-US', { 
                         month: 'long', 
                         day: 'numeric', 
                         year: 'numeric' 

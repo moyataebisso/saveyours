@@ -20,6 +20,7 @@ function CheckoutForm({ sessions, totalAmount, paymentIntentId }: CheckoutFormPr
   const elements = useElements();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [agreeToTerms, setAgreeToTerms] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -33,6 +34,11 @@ function CheckoutForm({ sessions, totalAmount, paymentIntentId }: CheckoutFormPr
     
     if (!formData.name || !formData.email) {
       toast.error('Please fill in all required fields');
+      return;
+    }
+
+    if (!agreeToTerms) {
+      toast.error('You must agree to the terms and conditions to proceed');
       return;
     }
     
@@ -142,9 +148,35 @@ function CheckoutForm({ sessions, totalAmount, paymentIntentId }: CheckoutFormPr
         </p>
       </div>
 
+      {/* Terms and Conditions Checkbox */}
+      <div className="border-t pt-4">
+        <label className="flex items-start gap-3 cursor-pointer group">
+          <input
+            type="checkbox"
+            checked={agreeToTerms}
+            onChange={(e) => setAgreeToTerms(e.target.checked)}
+            className="mt-1 w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500 focus:ring-2"
+            required
+          />
+          <span className="text-sm text-gray-700 select-none">
+            By paying for this class, you agree to all of our{' '}
+            <a
+              href="/policies"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary-600 underline hover:text-primary-700 font-medium"
+              onClick={(e) => e.stopPropagation()}
+            >
+              terms and conditions
+            </a>
+            .
+          </span>
+        </label>
+      </div>
+
       <button
         type="submit"
-        disabled={!stripe || loading}
+        disabled={!stripe || loading || !agreeToTerms}
         className="w-full bg-primary-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {loading ? 'Processing...' : `Complete Registration - $${totalAmount}`}

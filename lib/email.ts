@@ -87,11 +87,11 @@ export async function sendEnrollmentConfirmation(
             <li>Participate in hands-on practice with certified instructors</li>
           </ul>
           
-          <p><strong>Cancellation Policy:</strong><br>
-          If you need to cancel or reschedule, please email us at info@saveyours.net at least 24 hours before your scheduled class.</p>
+          <p><strong>Questions or Need to Reschedule?</strong><br>
+          Please refer to our <a href="https://saveyours.net/policies" style="color: #DC2626; text-decoration: underline;">policies page</a> for information about cancellations, rescheduling, and refunds. If you need to cancel or reschedule, please email us at <a href="mailto:info@saveyours.net" style="color: #DC2626;">info@saveyours.net</a> at least 24 hours before your scheduled class.</p>
           
           <div class="footer">
-            <p>Questions? Contact us at info@saveyours.net</p>
+            <p>Questions? Contact us at <a href="mailto:info@saveyours.net">info@saveyours.net</a></p>
             <p>SaveYours LLC | Minneapolis, MN</p>
           </div>
         </div>

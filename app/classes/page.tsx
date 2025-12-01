@@ -27,6 +27,19 @@ interface ClassSession {
   };
 }
 
+// Helper function to convert 24-hour time to 12-hour format
+const formatTime = (time: string): string => {
+  if (!time) return '';
+  
+  // Handle both "HH:MM:SS" and "HH:MM" formats
+  const [hours, minutes] = time.split(':');
+  const hour = parseInt(hours, 10);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const hour12 = hour % 12 || 12; // Convert 0 to 12 for midnight
+  
+  return `${hour12}:${minutes} ${ampm}`;
+};
+
 export default function ClassesPage() {
   const [sessions, setSessions] = useState<ClassSession[]>([]);
   const [loading, setLoading] = useState(true);
@@ -165,7 +178,7 @@ export default function ClassesPage() {
                     : 'bg-gray-100 text-gray-700'
                 }`}
               >
-                {session.start_time} - {session.class?.name.split(' ').slice(0, 2).join(' ')}
+                {formatTime(session.start_time)} - {session.class?.name.split(' ').slice(0, 2).join(' ')}
               </div>
             ))}
             {daysSessions.length > 2 && (
@@ -271,7 +284,7 @@ export default function ClassesPage() {
                     </div>
                     <div className="flex items-center">
                       <Clock className="w-4 h-4 mr-2" />
-                      {session.start_time} - {session.end_time}
+                      {formatTime(session.start_time)} - {formatTime(session.end_time)}
                     </div>
                     <div className="flex items-center">
                       <MapPin className="w-4 h-4 mr-2" />
@@ -359,7 +372,7 @@ export default function ClassesPage() {
                         <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
                           <span className="flex items-center">
                             <Clock className="w-4 h-4 mr-1" />
-                            {session.start_time} - {session.end_time}
+                            {formatTime(session.start_time)} - {formatTime(session.end_time)}
                           </span>
                           <span className="flex items-center">
                             <Users className="w-4 h-4 mr-1" />

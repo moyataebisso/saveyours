@@ -116,3 +116,107 @@ export async function sendEnrollmentConfirmation(
     return { success: false, error }
   }
 }
+
+export async function sendVoucherEmail(
+  to: string,
+  voucherDetails: {
+    name: string
+    className: string
+    date: string
+    time: string
+    voucherUrl: string
+  }
+) {
+  const formattedDate = new Date(voucherDetails.date).toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #DC2626; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; background-color: #f9f9f9; }
+        .voucher-link { background-color: #DC2626; color: white; padding: 15px 25px; text-decoration: none; display: inline-block; border-radius: 5px; margin: 20px 0; font-weight: bold; }
+        .details-box { background-color: #fff; padding: 15px; margin: 15px 0; border: 1px solid #ddd; border-radius: 5px; }
+        .steps { background-color: #fff; padding: 15px; margin: 15px 0; border-left: 4px solid #DC2626; }
+        .steps ol { margin: 0; padding-left: 20px; }
+        .steps li { margin-bottom: 10px; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Blended Course Information</h1>
+        </div>
+        <div class="content">
+          <p>Hello ${voucherDetails.name},</p>
+
+          <p>Thank you for choosing SaveYours for your certification needs. Please follow the directions below to register for the online portion of the American Red Cross ${voucherDetails.className} course.</p>
+
+          <p>You must complete the online course content and present proof of completion in order to attend and participate in the in-person classroom course session(s) scheduled to meet on the following date(s), time(s) and location:</p>
+
+          <div class="details-box">
+            <p><strong>Date(s):</strong> ${formattedDate}</p>
+            <p><strong>Time(s):</strong> ${voucherDetails.time}</p>
+            <p><strong>Location:</strong> 5450 W 41st St. Minneapolis, MN 55416</p>
+          </div>
+
+          <p>There are two parking locations for this building, a parking lot directly behind the building and another parking lot across the adjacent street.</p>
+
+          <p><strong>To register for and access the online portion of the course:</strong></p>
+
+          <p style="text-align: center;">
+            <a href="${voucherDetails.voucherUrl}" class="voucher-link">Access Your Online Course</a>
+          </p>
+
+          <div class="steps">
+            <ol>
+              <li>Click the registration link above</li>
+              <li>Enter your information in the student details:
+                <ul>
+                  <li>Enter student first and last name (required)</li>
+                  <li>Enter student email address (required)</li>
+                  <li>Enter phone number</li>
+                </ul>
+              </li>
+              <li>Note: If an Email Verification Confirmation message appears click "Return" and verify the email address entered is a valid email. Then click "Register" and "Login" and click "Proceed."</li>
+              <li>Check your email account for an email from The American Red Cross. Click the link provided in the email and enter your Username (provided in the email) and password. If you already have an account in the Red Cross Learning Center, we recommend you use your existing Red Cross Learning Center password (If you do not see the email, check your junk/spam folders).</li>
+              <li>Once in the Red Cross Learning Center, the class(es) you are taking will show on the Home page. Click the ${voucherDetails.className} course and click the launch button to get started. Digital course materials are available and in the Materials tab. You may also shop for and purchase materials and supplies by clicking the link on your Home page.</li>
+            </ol>
+          </div>
+
+          <p>Should you have any questions, please email us at <a href="mailto:info@saveyours.net" style="color: #DC2626;">info@saveyours.net</a>. Thank you.</p>
+
+          <div class="footer">
+            <p>SaveYours LLC | Minneapolis, MN</p>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `
+
+  const mailOptions = {
+    from: '"SaveYours Training" <info@saveyours.net>',
+    to,
+    subject: `Blended ${voucherDetails.className} course information`,
+    html: htmlContent,
+  }
+
+  try {
+    const info = await transporter.sendMail(mailOptions)
+    console.log('Voucher email sent:', info.messageId)
+    return { success: true, messageId: info.messageId }
+  } catch (error) {
+    console.error('Voucher email error:', error)
+    return { success: false, error }
+  }
+}

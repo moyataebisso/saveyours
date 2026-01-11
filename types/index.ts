@@ -111,3 +111,13 @@ export interface SessionData {
   max_capacity?: number;
   status?: 'scheduled' | 'full' | 'cancelled';
 }
+
+export interface VoucherLink {
+  id: string;
+  session_id: string;
+  voucher_url: string;
+  status: 'available' | 'assigned';
+  assigned_to_email?: string;
+  assigned_at?: string;
+  created_at: string;
+}

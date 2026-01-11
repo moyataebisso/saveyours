@@ -2,7 +2,7 @@
 import { supabase } from '@/lib/supabase';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Calendar, Users, DollarSign, MessageSquare, Plus, Edit, Trash2, CheckCircle, X, Clock, Phone, Mail, Save } from 'lucide-react';
+import { Calendar, Users, DollarSign, MessageSquare, Plus, Edit, Trash2, CheckCircle, X, Clock, Phone, Mail, Save, Link } from 'lucide-react';
 import { supabaseHelpers } from '@/lib/supabase';
 import { toast } from '@/components/ui/Toaster';
 import type { Enrollment, ClassSession, Inquiry, Class } from '@/types';
@@ -309,12 +309,21 @@ export default function AdminDashboard() {
       <div className="bg-white shadow-sm border-b">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <h1 className="text-2xl font-bold">Admin Dashboard</h1>
-          <button
-            onClick={handleLogout}
-            className="text-gray-600 hover:text-gray-900"
-          >
-            Logout
-          </button>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => router.push('/admin/vouchers')}
+              className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+            >
+              <Link className="w-4 h-4" />
+              Manage Vouchers
+            </button>
+            <button
+              onClick={handleLogout}
+              className="text-gray-600 hover:text-gray-900"
+            >
+              Logout
+            </button>
+          </div>
         </div>
       </div>
 

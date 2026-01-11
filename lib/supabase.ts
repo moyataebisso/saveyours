@@ -1,11 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
-import type { 
-  ClassSession, 
-  ClassSessionWithClass, 
-  EnrollmentData, 
-  InquiryData, 
-  SessionData, 
-  Enrollment 
+import type {
+  ClassSession,
+  ClassSessionWithClass,
+  EnrollmentData,
+  InquiryData,
+  SessionData,
+  Enrollment,
+  VoucherLink
 } from '@/types'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -302,15 +303,90 @@ export const supabaseHelpers = {
     console.log('=== SUPABASE HELPER: updateInquiryStatus ===');
     console.log('Inquiry ID:', inquiryId);
     console.log('New Status:', status);
-    
+
     const { data, error } = await supabase
       .from('inquiries')
       .update({ status })
       .eq('id', inquiryId)
       .select()
-    
+
     console.log('Database update result:', { data, error });
-    
+
     return { data, error }
+  },
+
+  // Voucher Management Functions
+
+  // Get the next available voucher for a session
+  async getAvailableVoucher(sessionId: string) {
+    const { data, error } = await supabase
+      .from('voucher_links')
+      .select('*')
+      .eq('session_id', sessionId)
+      .eq('status', 'available')
+      .limit(1)
+      .single()
+
+    return { data: data as VoucherLink | null, error }
+  },
+
+  // Assign a voucher to an email
+  async assignVoucher(voucherId: string, email: string) {
+    const { data, error } = await supabase
+      .from('voucher_links')
+      .update({
+        status: 'assigned',
+        assigned_to_email: email,
+        assigned_at: new Date().toISOString()
+      })
+      .eq('id', voucherId)
+      .select()
+      .single()
+
+    return { data: data as VoucherLink | null, error }
+  },
+
+  // Bulk add vouchers for a session
+  async addVouchers(sessionId: string, urls: string[]) {
+    const vouchers = urls.map(url => ({
+      session_id: sessionId,
+      voucher_url: url.trim(),
+      status: 'available' as const
+    }))
+
+    const { data, error } = await supabase
+      .from('voucher_links')
+      .insert(vouchers)
+      .select()
+
+    return { data: data as VoucherLink[] | null, error }
+  },
+
+  // Get all vouchers for a session
+  async getVouchersForSession(sessionId: string) {
+    const { data, error } = await supabase
+      .from('voucher_links')
+      .select('*')
+      .eq('session_id', sessionId)
+      .order('created_at', { ascending: true })
+
+    return { data: data as VoucherLink[] | null, error }
+  },
+
+  // Get voucher stats for a session
+  async getVoucherStats(sessionId: string) {
+    const { data, error } = await supabase
+      .from('voucher_links')
+      .select('status')
+      .eq('session_id', sessionId)
+
+    if (error || !data) {
+      return { available: 0, assigned: 0, total: 0 }
+    }
+
+    const available = data.filter(v => v.status === 'available').length
+    const assigned = data.filter(v => v.status === 'assigned').length
+
+    return { available, assigned, total: data.length }
   }
 }

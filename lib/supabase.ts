@@ -388,5 +388,42 @@ export const supabaseHelpers = {
     const assigned = data.filter(v => v.status === 'assigned').length
 
     return { available, assigned, total: data.length }
+  },
+
+  // Delete a single voucher
+  async deleteVoucher(voucherId: string) {
+    const { error } = await supabase
+      .from('voucher_links')
+      .delete()
+      .eq('id', voucherId)
+
+    return { error }
+  },
+
+  // Delete multiple vouchers
+  async deleteVouchers(voucherIds: string[]) {
+    const { error } = await supabase
+      .from('voucher_links')
+      .delete()
+      .in('id', voucherIds)
+
+    return { error }
+  },
+
+  // Update a voucher
+  async updateVoucher(voucherId: string, updates: {
+    voucher_url?: string;
+    status?: 'available' | 'assigned';
+    assigned_to_email?: string | null;
+    assigned_at?: string | null;
+  }) {
+    const { data, error } = await supabase
+      .from('voucher_links')
+      .update(updates)
+      .eq('id', voucherId)
+      .select()
+      .single()
+
+    return { data: data as VoucherLink | null, error }
   }
 }

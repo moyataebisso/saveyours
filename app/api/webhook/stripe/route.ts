@@ -25,54 +25,85 @@ export async function POST(req: NextRequest) {
   if (event.type === 'payment_intent.succeeded') {
     const paymentIntent = event.data.object as Stripe.PaymentIntent
     const metadata = paymentIntent.metadata
-    const { sessionId, email, name, phone, className, classDate, classTime } = metadata
+    const { email, name, phone } = metadata
 
-    // Create enrollment in database
-    const { data: enrollment, error } = await supabaseHelpers.createEnrollment({
-      session_id: sessionId,
-      guest_email: email,
-      guest_name: name,
-      amount_paid: paymentIntent.amount / 100,
-      stripe_payment_intent_id: paymentIntent.id,
-    })
+    // Get all session IDs from metadata
+    let sessionIds: string[] = [];
 
-    if (!error && enrollment) {
-      // Send confirmation email
+    if (metadata.sessionIds) {
+      // New format: array of session IDs stored as JSON
+      try {
+        sessionIds = JSON.parse(metadata.sessionIds);
+      } catch {
+        sessionIds = [];
+      }
+    }
+
+    // Fall back to single sessionId for backwards compatibility
+    if (sessionIds.length === 0 && metadata.sessionId) {
+      sessionIds = [metadata.sessionId];
+    }
+
+    // Create enrollment for EACH session
+    const enrolledClasses: { className: string; date: string; time: string }[] = [];
+
+    for (const sessionId of sessionIds) {
+      const { data: session } = await supabaseHelpers.getSessionById(sessionId);
+
+      if (session) {
+        // Create enrollment with individual class price
+        const { data: enrollment, error } = await supabaseHelpers.createEnrollment({
+          session_id: sessionId,
+          guest_email: email,
+          guest_name: name,
+          amount_paid: session.class.price,
+          stripe_payment_intent_id: paymentIntent.id,
+        });
+
+        if (!error && enrollment) {
+          enrolledClasses.push({
+            className: session.class.name,
+            date: session.date,
+            time: session.start_time
+          });
+
+          // Try to assign and send voucher for each session
+          try {
+            const { data: voucher } = await supabaseHelpers.getAvailableVoucher(sessionId);
+
+            if (voucher) {
+              const { error: assignError } = await supabaseHelpers.assignVoucher(voucher.id, email);
+
+              if (!assignError) {
+                await sendVoucherEmail(email, {
+                  name,
+                  className: session.class.name,
+                  date: session.date,
+                  time: session.start_time,
+                  voucherUrl: voucher.voucher_url,
+                });
+                console.log(`Voucher email sent to ${email} for session ${sessionId}`);
+              } else {
+                console.error('Failed to assign voucher:', assignError);
+              }
+            } else {
+              console.warn(`No available voucher for session ${sessionId} - student ${email} will need manual voucher assignment`);
+            }
+          } catch (voucherError) {
+            console.error('Voucher assignment error (non-fatal):', voucherError);
+          }
+        }
+      }
+    }
+
+    // Send single confirmation email with first enrolled class info
+    if (enrolledClasses.length > 0) {
       await sendEnrollmentConfirmation(email, {
         name,
-        className,
-        date: classDate,
-        time: classTime,
-      })
-
-      // Try to assign and send voucher email
-      try {
-        const { data: voucher } = await supabaseHelpers.getAvailableVoucher(sessionId)
-
-        if (voucher) {
-          // Assign the voucher to this student
-          const { error: assignError } = await supabaseHelpers.assignVoucher(voucher.id, email)
-
-          if (!assignError) {
-            // Send the voucher email
-            await sendVoucherEmail(email, {
-              name,
-              className,
-              date: classDate,
-              time: classTime,
-              voucherUrl: voucher.voucher_url,
-            })
-            console.log(`Voucher email sent to ${email} for session ${sessionId}`)
-          } else {
-            console.error('Failed to assign voucher:', assignError)
-          }
-        } else {
-          console.warn(`No available voucher for session ${sessionId} - student ${email} will need manual voucher assignment`)
-        }
-      } catch (voucherError) {
-        // Don't fail the whole transaction if voucher assignment fails
-        console.error('Voucher assignment error (non-fatal):', voucherError)
-      }
+        className: enrolledClasses[0].className,
+        date: enrolledClasses[0].date,
+        time: enrolledClasses[0].time,
+      });
     }
   }
 

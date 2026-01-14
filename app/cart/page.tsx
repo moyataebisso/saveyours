@@ -195,17 +195,54 @@ export default function CartPage() {
 
   const totalAmount = cartItems.reduce((sum, item) => sum + (item.class?.price || 0), 0);
 
-  const removeFromCart = (sessionId: string) => {
+  const removeFromCart = async (sessionId: string) => {
     const updatedCart = cartItems.filter(item => item.id !== sessionId);
     setCartItems(updatedCart);
     localStorage.setItem('cart', JSON.stringify(updatedCart));
     window.dispatchEvent(new Event('storage'));
-    
+
     if (updatedCart.length === 0) {
       router.push('/classes');
+      return;
     }
-    
-    toast.success('Item removed from cart');
+
+    // CRITICAL: Create NEW payment intent with updated total
+    const newTotal = updatedCart.reduce((sum, item) => sum + (item.class?.price || 0), 0);
+
+    try {
+      // Cancel old payment intent if it exists
+      if (paymentIntentId) {
+        await fetch('/api/payment/cancel-intent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paymentIntentId })
+        });
+      }
+
+      // Create new payment intent with remaining items
+      const response = await fetch('/api/payment/create-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionIds: updatedCart.map(item => item.id),
+          totalAmount: newTotal
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.error) {
+        toast.error(data.error);
+        return;
+      }
+
+      setClientSecret(data.clientSecret);
+      setPaymentIntentId(data.paymentIntentId);
+      toast.success('Item removed from cart');
+    } catch (error) {
+      console.error('Error updating payment intent:', error);
+      toast.error('Error updating cart. Please refresh the page.');
+    }
   };
 
   const clearCart = () => {
@@ -232,15 +269,15 @@ export default function CartPage() {
 
     setCartItems(cart);
     
-    // Create payment intent for total amount
+    // Create payment intent for total amount with ALL session IDs
     const total = cart.reduce((sum, item) => sum + (item.class?.price || 0), 0);
-    
+
     fetch('/api/payment/create-intent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        sessionId: cart[0].id, // Use first session for metadata
-        totalAmount: total // Pass total if multiple items
+      body: JSON.stringify({
+        sessionIds: cart.map(item => item.id), // Pass ALL session IDs
+        totalAmount: total
       })
     })
     .then(res => res.json())
@@ -324,9 +361,10 @@ export default function CartPage() {
 
             {/* Checkout Form */}
             <div className="bg-white rounded-lg shadow-md p-6">
-              <Elements 
-                stripe={stripePromise} 
-                options={{ 
+              <Elements
+                key={clientSecret}
+                stripe={stripePromise}
+                options={{
                   clientSecret,
                   appearance: {
                     theme: 'stripe',

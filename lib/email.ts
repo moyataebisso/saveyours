@@ -1,14 +1,20 @@
 import nodemailer from 'nodemailer'
 
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,
-  port: parseInt(process.env.EMAIL_PORT!),
-  secure: true,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-})
+// Google Workspace SMTP configuration - lazy initialization
+let transporter: nodemailer.Transporter | null = null
+
+function getTransporter() {
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    })
+  }
+  return transporter
+}
 
 export async function sendEnrollmentConfirmation(
   to: string,
@@ -108,7 +114,7 @@ export async function sendEnrollmentConfirmation(
   }
 
   try {
-    const info = await transporter.sendMail(mailOptions)
+    const info = await getTransporter().sendMail(mailOptions)
     console.log('Email sent:', info.messageId)
     return { success: true, messageId: info.messageId }
   } catch (error) {
@@ -212,7 +218,7 @@ export async function sendVoucherEmail(
   }
 
   try {
-    const info = await transporter.sendMail(mailOptions)
+    const info = await getTransporter().sendMail(mailOptions)
     console.log('Voucher email sent:', info.messageId)
     return { success: true, messageId: info.messageId }
   } catch (error) {

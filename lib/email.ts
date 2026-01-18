@@ -180,7 +180,7 @@ export async function sendVoucherEmail(
           <p><strong>To register for and access the online portion of the course:</strong></p>
 
           <p style="text-align: center;">
-            <a href="${voucherDetails.voucherUrl}" class="voucher-link">Access Your Online Course</a>
+            <a href="${voucherDetails.voucherUrl}" class="voucher-link" style="background-color: #DC2626; color: #FFFFFF; padding: 15px 25px; text-decoration: none; display: inline-block; border-radius: 5px; margin: 20px 0; font-weight: bold;">Access Your Online Course</a>
           </p>
 
           <div class="steps">

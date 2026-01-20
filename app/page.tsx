@@ -161,7 +161,7 @@ export default function HomePage() {
                 </div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">CPR/AED/First Aid Training</h3>
                 <p className="text-gray-500 text-sm mb-4">For Non-Healthcare Workers</p>
-                <div className="text-4xl font-bold text-primary-600 mb-4">$90</div>
+                <div className="text-4xl font-bold text-primary-600 mb-4">$100</div>
                 <p className="text-gray-600 mb-6">
                   Comprehensive CPR and AED training for the general public. Be prepared to 
                   save lives in emergency situations.

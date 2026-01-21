@@ -133,6 +133,14 @@ export async function sendVoucherEmail(
     voucherUrl: string
   }
 ) {
+  console.log('📧 [VOUCHER EMAIL] sendVoucherEmail called:', {
+    to,
+    name: voucherDetails.name,
+    className: voucherDetails.className,
+    date: voucherDetails.date,
+    voucherUrlPreview: voucherDetails.voucherUrl?.substring(0, 50) + '...'
+  });
+
   const formattedDate = new Date(voucherDetails.date).toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',

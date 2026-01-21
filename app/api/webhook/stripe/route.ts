@@ -61,6 +61,12 @@ export async function POST(req: NextRequest) {
         });
 
         if (!error && enrollment) {
+          console.log('🎟️ [WEBHOOK] Enrollment created successfully:', {
+            enrollmentId: enrollment.id,
+            sessionId,
+            email
+          });
+
           enrolledClasses.push({
             className: session.class.name,
             date: session.date,
@@ -68,30 +74,52 @@ export async function POST(req: NextRequest) {
           });
 
           // Try to assign and send voucher for each session
+          console.log('🎟️ [WEBHOOK] Starting voucher assignment process for session:', sessionId);
           try {
-            const { data: voucher } = await supabaseHelpers.getAvailableVoucher(sessionId);
+            const { data: voucher, error: voucherError } = await supabaseHelpers.getAvailableVoucher(sessionId);
+
+            console.log('🎟️ [WEBHOOK] getAvailableVoucher returned:', {
+              hasVoucher: !!voucher,
+              voucherId: voucher?.id,
+              voucherError
+            });
+
+            if (voucherError) {
+              console.error('🎟️ [WEBHOOK] Error getting available voucher:', voucherError);
+            }
 
             if (voucher) {
-              const { error: assignError } = await supabaseHelpers.assignVoucher(voucher.id, email);
+              console.log('🎟️ [WEBHOOK] Found voucher, attempting to assign:', voucher.id);
+              const { data: assignedVoucher, error: assignError } = await supabaseHelpers.assignVoucher(voucher.id, email);
+
+              console.log('🎟️ [WEBHOOK] assignVoucher returned:', {
+                success: !assignError,
+                assignedVoucher: assignedVoucher?.id,
+                assignError
+              });
 
               if (!assignError) {
-                await sendVoucherEmail(email, {
+                console.log('🎟️ [WEBHOOK] Voucher assigned, sending email...');
+                const emailResult = await sendVoucherEmail(email, {
                   name,
                   className: session.class.name,
                   date: session.date,
                   time: session.start_time,
                   voucherUrl: voucher.voucher_url,
                 });
-                console.log(`Voucher email sent to ${email} for session ${sessionId}`);
+                console.log('🎟️ [WEBHOOK] Voucher email result:', emailResult);
+                console.log(`✅ Voucher email sent to ${email} for session ${sessionId}`);
               } else {
-                console.error('Failed to assign voucher:', assignError);
+                console.error('❌ [WEBHOOK] Failed to assign voucher:', assignError);
               }
             } else {
-              console.warn(`No available voucher for session ${sessionId} - student ${email} will need manual voucher assignment`);
+              console.warn(`⚠️ [WEBHOOK] No available voucher for session ${sessionId} - student ${email} will need manual voucher assignment`);
             }
           } catch (voucherError) {
-            console.error('Voucher assignment error (non-fatal):', voucherError);
+            console.error('❌ [WEBHOOK] Voucher assignment error (non-fatal):', voucherError);
           }
+        } else {
+          console.error('❌ [WEBHOOK] Enrollment creation failed:', { error, sessionId, email });
         }
       }
     }

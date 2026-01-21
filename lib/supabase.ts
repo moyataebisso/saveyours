@@ -319,19 +319,45 @@ export const supabaseHelpers = {
 
   // Get the next available voucher for a session
   async getAvailableVoucher(sessionId: string) {
+    console.log('🎟️ [VOUCHER] getAvailableVoucher called for session:', sessionId);
+
+    // First, let's see ALL vouchers for this session to debug
+    const { data: allVouchers, error: countError } = await supabase
+      .from('voucher_links')
+      .select('id, status, assigned_to_email')
+      .eq('session_id', sessionId);
+
+    console.log('🎟️ [VOUCHER] All vouchers for session:', {
+      sessionId,
+      totalCount: allVouchers?.length || 0,
+      vouchers: allVouchers?.map(v => ({ id: v.id, status: v.status, assigned: v.assigned_to_email })),
+      countError
+    });
+
+    // Now get one available voucher (without .single() to avoid error on 0 rows)
     const { data, error } = await supabase
       .from('voucher_links')
       .select('*')
       .eq('session_id', sessionId)
       .eq('status', 'available')
-      .limit(1)
-      .single()
+      .limit(1);
 
-    return { data: data as VoucherLink | null, error }
+    console.log('🎟️ [VOUCHER] Available voucher query result:', {
+      sessionId,
+      foundVoucher: data && data.length > 0 ? data[0].id : null,
+      voucherUrl: data && data.length > 0 ? data[0].voucher_url?.substring(0, 50) + '...' : null,
+      error
+    });
+
+    // Return first voucher or null
+    const voucher = data && data.length > 0 ? data[0] : null;
+    return { data: voucher as VoucherLink | null, error }
   },
 
   // Assign a voucher to an email
   async assignVoucher(voucherId: string, email: string) {
+    console.log('🎟️ [VOUCHER] assignVoucher called:', { voucherId, email });
+
     const { data, error } = await supabase
       .from('voucher_links')
       .update({
@@ -342,6 +368,14 @@ export const supabaseHelpers = {
       .eq('id', voucherId)
       .select()
       .single()
+
+    console.log('🎟️ [VOUCHER] assignVoucher result:', {
+      success: !error,
+      voucherId,
+      email,
+      updatedStatus: data?.status,
+      error
+    });
 
     return { data: data as VoucherLink | null, error }
   },

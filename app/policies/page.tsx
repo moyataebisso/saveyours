@@ -28,6 +28,11 @@ export default function PoliciesPage() {
                 (no-show), will result in forfeiture of your course fee.</li>
           </ul>
 
+          <h3 className="font-semibold text-lg mb-3">Attendance Policy</h3>
+          <p className="text-gray-600 mb-6">
+            Students must arrive ON-TIME for their scheduled in-person session. Failure to show up within 15 minutes of the scheduled in-person session will result in the forfeiture of your position in that class and your course fee.
+          </p>
+
           <h3 className="font-semibold text-lg mb-3">Contact</h3>
           <p className="text-gray-600">
             For cancellations or rescheduling, please email{' '}

@@ -93,6 +93,10 @@ export async function sendEnrollmentConfirmation(
             <li>Participate in hands-on practice with certified instructors</li>
           </ul>
           
+          <div class="important">
+            <strong>ATTENDANCE POLICY:</strong> Students must arrive ON-TIME for their scheduled in-person session. Failure to show up within 15 minutes of the scheduled in-person session will result in the forfeiture of your position in that class and your course fee.
+          </div>
+
           <p><strong>Questions or Need to Reschedule?</strong><br>
           Please refer to our <a href="https://saveyours.net/policies" style="color: #DC2626; text-decoration: underline;">policies page</a> for information about cancellations, rescheduling, and refunds. If you need to cancel or reschedule, please email us at <a href="mailto:info@saveyours.net" style="color: #DC2626;">info@saveyours.net</a> at least 24 hours before your scheduled class.</p>
           

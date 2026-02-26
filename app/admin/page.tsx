@@ -156,6 +156,19 @@ export default function AdminDashboard() {
     }
   };
 
+  const removeEnrollment = async (enrollmentId: string, sessionId: string, studentName: string) => {
+    if (!confirm(`Remove ${studentName} from this class? This will free up their spot.`)) return;
+
+    const { error } = await supabaseHelpers.removeEnrollment(enrollmentId, sessionId);
+
+    if (error) {
+      toast.error(error.message || 'Failed to remove enrollment');
+    } else {
+      toast.success('Student removed and spot freed up');
+      loadData();
+    }
+  };
+
   const cancelSession = async (sessionId: string) => {
     console.log('=== CANCEL SESSION ===');
     console.log('Session ID to cancel:', sessionId);
@@ -473,7 +486,7 @@ export default function AdminDashboard() {
                           </td>
                           <td className="px-4 py-2">
                             <div className="flex gap-2">
-                              {session.status === 'scheduled' && (
+                              {session.status !== 'cancelled' && (
                                 <>
                                   <button
                                     onClick={() => setEditingSession(session)}
@@ -548,16 +561,27 @@ export default function AdminDashboard() {
                             </span>
                           </td>
                           <td className="px-4 py-2">
-                            {enrollment.status === 'confirmed' || enrollment.status === 'pending' ? (
-                              <button
-                                onClick={() => markEnrollmentComplete(enrollment.id)}
-                                className="text-green-600 hover:text-green-800"
-                              >
-                                Mark Complete
-                              </button>
-                            ) : enrollment.status === 'completed' ? (
-                              <span className="text-green-600">✓ Completed</span>
-                            ) : null}
+                            <div className="flex items-center gap-2">
+                              {enrollment.status === 'confirmed' || enrollment.status === 'pending' ? (
+                                <>
+                                  <button
+                                    onClick={() => markEnrollmentComplete(enrollment.id)}
+                                    className="text-green-600 hover:text-green-800"
+                                  >
+                                    Mark Complete
+                                  </button>
+                                  <button
+                                    onClick={() => removeEnrollment(enrollment.id, enrollment.session_id, enrollment.guest_name || enrollment.user?.full_name || 'this student')}
+                                    className="text-red-500 hover:text-red-700"
+                                    title="Remove student from class"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </>
+                              ) : enrollment.status === 'completed' ? (
+                                <span className="text-green-600">✓ Completed</span>
+                              ) : null}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -869,7 +893,20 @@ function AddSessionModal({ classes, onClose }: { classes: Class[], onClose: () =
               />
             </div>
           </div>
-          
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Max Students</label>
+            <input
+              type="number"
+              required
+              min={1}
+              max={50}
+              value={formData.max_capacity}
+              onChange={(e) => setFormData({...formData, max_capacity: parseInt(e.target.value) || 12})}
+              className="w-full px-3 py-2 border rounded-lg"
+            />
+          </div>
+
           <div className="flex gap-2">
             <button
               type="submit"
@@ -905,7 +942,14 @@ function EditSessionModal({ session, classes, onClose }: { session: ClassSession
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log('📅 Updating session with date:', formData.date);
-    const { error } = await supabaseHelpers.updateClassSession(session.id, formData);
+
+    // If capacity increased on a full session, update status back to scheduled
+    const updates: Partial<import('@/types').SessionData> & { status?: string } = { ...formData };
+    if (session.status === 'full' && formData.max_capacity > session.current_enrollment) {
+      updates.status = 'scheduled';
+    }
+
+    const { error } = await supabaseHelpers.updateClassSession(session.id, updates);
     if (!error) {
       toast.success('Session updated successfully');
       onClose();

@@ -4,7 +4,10 @@
       "Bash(npx tsc:*)",
       "Bash(npm run lint)",
       "Bash(npx tsx:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(npx next:*)",
+      "Bash(./node_modules/.bin/next lint:*)",
+      "Bash(node:*)"
     ]
   }
 }

@@ -444,6 +444,40 @@ export const supabaseHelpers = {
     return { error }
   },
 
+  // Admin: Remove enrollment and free up the spot
+  async removeEnrollment(enrollmentId: string, sessionId: string) {
+    // Get current session data
+    const { data: session } = await supabase
+      .from('class_sessions')
+      .select('current_enrollment, max_capacity, status')
+      .eq('id', sessionId)
+      .single();
+
+    if (!session) return { data: null, error: { message: 'Session not found' } };
+
+    // Cancel the enrollment
+    const { data, error } = await supabase
+      .from('enrollments')
+      .update({ status: 'cancelled' })
+      .eq('id', enrollmentId)
+      .select();
+
+    if (!error) {
+      const newCount = Math.max(0, session.current_enrollment - 1);
+      const newStatus = newCount < session.max_capacity ? 'scheduled' : 'full';
+
+      await supabase
+        .from('class_sessions')
+        .update({
+          current_enrollment: newCount,
+          status: newStatus
+        })
+        .eq('id', sessionId);
+    }
+
+    return { data, error };
+  },
+
   // Update a voucher
   async updateVoucher(voucherId: string, updates: {
     voucher_url?: string;

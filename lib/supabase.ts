@@ -103,15 +103,28 @@ export const supabaseHelpers = {
     const { data, error } = await supabase
       .from('enrollments')
       .select(`
-        *,
+        id,
+        user_id,
+        guest_email,
+        guest_name,
+        session_id,
+        enrolled_at,
+        status,
+        payment_status,
+        stripe_payment_intent_id,
+        amount_paid,
+        certification_expires,
+        completed_at,
+        online_course_completed,
         session:class_sessions(
           *,
           class:classes(*)
         )
       `)
       .order('enrolled_at', { ascending: false })
-    
-    return { data: data as Enrollment[] | null, error }
+
+    // Supabase returns M2O relations as objects, normalize the type
+    return { data: data as unknown as Enrollment[] | null, error }
   },
 
   // Admin: Create new class session - FIXED DATE HANDLING

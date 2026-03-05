@@ -298,17 +298,34 @@ export default function AdminDashboard() {
     );
   }
 
-  // Calculate stats — use ALL TIME totals based on payment_status only
-  const totalRevenue = enrollments
+  // Calculate stats
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // Current = confirmed enrollments where the class hasn't happened yet
+  const currentEnrollmentsList = enrollments.filter(e => {
+    const classDate = e.session?.date ? new Date(e.session.date) : null;
+    return (
+      e.payment_status === 'paid' &&
+      e.status === 'confirmed' &&
+      classDate !== null &&
+      classDate >= today
+    );
+  });
+  const currentEnrollments = currentEnrollmentsList.length;
+  const currentRevenue = currentEnrollmentsList
+    .reduce((sum, e) => sum + Number(e.amount_paid || 0), 0);
+
+  // All time = all paid enrollments ever
+  const allTimeRevenue = enrollments
     .filter(e => e.payment_status === 'paid')
     .reduce((sum, e) => sum + Number(e.amount_paid || 0), 0);
+  const allTimeEnrollments = enrollments.filter(e => e.payment_status === 'paid').length;
+
   const upcomingSessions = sessions.filter(s => {
     const sessionDate = new Date(s.date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
     return sessionDate >= today && s.status === 'scheduled';
   }).length;
-  const totalEnrollments = enrollments.filter(e => e.payment_status === 'paid').length;
   const newInquiries = inquiries.filter(i => i.status === 'new').length;
 
   // Organize inquiries by status
@@ -345,17 +362,19 @@ export default function AdminDashboard() {
         <div className="grid md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-gray-500">Total Revenue</span>
+              <span className="text-gray-500">Current Revenue</span>
               <DollarSign className="w-5 h-5 text-green-600" />
             </div>
-            <p className="text-2xl font-bold">${totalRevenue}</p>
+            <p className="text-2xl font-bold">${currentRevenue.toLocaleString()}</p>
+            <p className="text-sm text-gray-400 mt-1">All time: ${allTimeRevenue.toLocaleString()}</p>
           </div>
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-gray-500">Enrollments</span>
+              <span className="text-gray-500">Current Enrollments</span>
               <Users className="w-5 h-5 text-blue-600" />
             </div>
-            <p className="text-2xl font-bold">{totalEnrollments}</p>
+            <p className="text-2xl font-bold">{currentEnrollments}</p>
+            <p className="text-sm text-gray-400 mt-1">All time: {allTimeEnrollments}</p>
           </div>
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center justify-between mb-2">

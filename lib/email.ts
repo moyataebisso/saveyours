@@ -127,6 +127,27 @@ export async function sendEnrollmentConfirmation(
   }
 }
 
+export async function sendAdminAlert(
+  subject: string,
+  htmlContent: string
+) {
+  const mailOptions = {
+    from: '"SaveYours Training" <info@saveyours.net>',
+    to: 'info@saveyours.net',
+    subject,
+    html: htmlContent,
+  }
+
+  try {
+    const info = await getTransporter().sendMail(mailOptions)
+    console.log('Admin alert email sent:', info.messageId)
+    return { success: true, messageId: info.messageId }
+  } catch (error) {
+    console.error('Admin alert email error:', error)
+    return { success: false, error }
+  }
+}
+
 export async function sendVoucherEmail(
   to: string,
   voucherDetails: {

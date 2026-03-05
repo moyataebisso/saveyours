@@ -41,8 +41,32 @@ function CheckoutForm({ sessions, totalAmount, paymentIntentId }: CheckoutFormPr
       toast.error('You must agree to the terms and conditions to proceed');
       return;
     }
-    
+
     setLoading(true);
+
+    // Update payment intent with customer data BEFORE charging
+    try {
+      const updateResponse = await fetch('/api/payment/update-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentIntentId,
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone || ''
+        })
+      });
+
+      if (!updateResponse.ok) {
+        toast.error('Failed to save your information. Please try again.');
+        setLoading(false);
+        return;
+      }
+    } catch {
+      toast.error('Failed to save your information. Please try again.');
+      setLoading(false);
+      return;
+    }
 
     const { error, paymentIntent } = await stripe.confirmPayment({
       elements,

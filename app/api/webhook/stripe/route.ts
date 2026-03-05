@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe-server'
 import { supabaseHelpers } from '@/lib/supabase'
-import { sendEnrollmentConfirmation, sendVoucherEmail } from '@/lib/email'
+import { sendEnrollmentConfirmation, sendVoucherEmail, sendAdminAlert } from '@/lib/email'
 import Stripe from 'stripe'
 
 export async function POST(req: NextRequest) {
@@ -25,7 +25,25 @@ export async function POST(req: NextRequest) {
   if (event.type === 'payment_intent.succeeded') {
     const paymentIntent = event.data.object as Stripe.PaymentIntent
     const metadata = paymentIntent.metadata
-    const { email, name, phone } = metadata
+
+    const name = metadata.name || metadata.customer_name || 'Unknown - check Stripe'
+    const email = metadata.email || metadata.receipt_email || paymentIntent.receipt_email || 'unknown@saveyours.net'
+    const phone = metadata.phone || ''
+
+    if (!metadata.name || !metadata.email) {
+      console.error('MISSING METADATA for payment:', paymentIntent.id, 'amount:', paymentIntent.amount)
+      sendAdminAlert(
+        '⚠️ SaveYours - Payment with missing data detected',
+        `<h2>Payment with Missing Data</h2>
+        <p>A payment succeeded in Stripe but is missing customer metadata.</p>
+        <table style="border-collapse:collapse;margin:16px 0;">
+          <tr><td style="padding:8px;font-weight:bold;">Payment Intent ID:</td><td style="padding:8px;">${paymentIntent.id}</td></tr>
+          <tr><td style="padding:8px;font-weight:bold;">Amount Paid:</td><td style="padding:8px;">$${(paymentIntent.amount / 100).toFixed(2)}</td></tr>
+          <tr><td style="padding:8px;font-weight:bold;">Missing Fields:</td><td style="padding:8px;">${!metadata.name ? 'Name' : ''}${!metadata.name && !metadata.email ? ', ' : ''}${!metadata.email ? 'Email' : ''}</td></tr>
+        </table>
+        <p>Please check the <strong>Reconcile</strong> tool in the <a href="https://saveyours.net/admin">Admin Dashboard</a> to review and fix this enrollment.</p>`
+      ).catch(err => console.error('Failed to send admin alert email:', err))
+    }
 
     // Get all session IDs from metadata
     let sessionIds: string[] = [];

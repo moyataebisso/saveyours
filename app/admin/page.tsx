@@ -20,6 +20,14 @@ export default function AdminDashboard() {
   const [showAddSession, setShowAddSession] = useState(false);
   const [editingSession, setEditingSession] = useState<ClassSession | null>(null);
   const [cancellingSession, setCancellingSession] = useState<string | null>(null);
+  const [showReconcile, setShowReconcile] = useState(false);
+  const [reconcileData, setReconcileData] = useState<{
+    ok: { paymentId: string; amount: number; name: string; email: string }[];
+    incomplete: { paymentId: string; amount: number; enrollmentId: string; name: string | null; email: string | null }[];
+    missing: { paymentId: string; amount: number; created: number; name: string | null; email: string | null; metadata: Record<string, string> }[];
+  } | null>(null);
+  const [reconcileLoading, setReconcileLoading] = useState(false);
+  const [creatingEnrollment, setCreatingEnrollment] = useState<string | null>(null);
 
   // Hardcoded password
   const ADMIN_PASSWORD = 'SaveYours2024!';
@@ -340,6 +348,24 @@ export default function AdminDashboard() {
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <h1 className="text-2xl font-bold">Admin Dashboard</h1>
           <div className="flex items-center gap-4">
+            <button
+              onClick={async () => {
+                setShowReconcile(true);
+                setReconcileLoading(true);
+                try {
+                  const res = await fetch('/api/admin/reconcile');
+                  const data = await res.json();
+                  setReconcileData(data);
+                } catch {
+                  toast.error('Failed to run reconciliation');
+                } finally {
+                  setReconcileLoading(false);
+                }
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
+            >
+              Reconcile
+            </button>
             <button
               onClick={() => router.push('/admin/vouchers')}
               className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
@@ -757,6 +783,113 @@ export default function AdminDashboard() {
         setEditingSession(null);
         loadData();
       }} />}
+
+      {/* Reconcile Modal */}
+      {showReconcile && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center p-6 border-b sticky top-0 bg-white rounded-t-xl">
+              <h2 className="text-xl font-bold">Stripe Reconciliation</h2>
+              <button onClick={() => { setShowReconcile(false); setReconcileData(null); }} className="text-gray-500 hover:text-gray-700">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              {reconcileLoading ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600 mx-auto mb-4"></div>
+                  <p className="text-gray-600">Checking Stripe payments against enrollments...</p>
+                </div>
+              ) : reconcileData ? (
+                <div className="space-y-6">
+                  {/* OK Section */}
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <h3 className="font-semibold text-green-800">OK: {reconcileData.ok.length} payments matched correctly</h3>
+                  </div>
+
+                  {/* Incomplete Section */}
+                  {reconcileData.incomplete.length > 0 && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                      <h3 className="font-semibold text-yellow-800 mb-3">Incomplete: {reconcileData.incomplete.length} enrollments missing data</h3>
+                      <div className="space-y-2">
+                        {reconcileData.incomplete.map((item) => (
+                          <div key={item.paymentId} className="bg-white rounded p-3 text-sm border border-yellow-100">
+                            <p><strong>Payment:</strong> {item.paymentId}</p>
+                            <p><strong>Amount:</strong> ${item.amount}</p>
+                            <p><strong>Name:</strong> {item.name || <span className="text-red-600">MISSING</span>}</p>
+                            <p><strong>Email:</strong> {item.email || <span className="text-red-600">MISSING</span>}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Missing Section */}
+                  {reconcileData.missing.length > 0 && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                      <h3 className="font-semibold text-red-800 mb-3">Missing: {reconcileData.missing.length} payments with no enrollment</h3>
+                      <div className="space-y-3">
+                        {reconcileData.missing.map((item) => (
+                          <div key={item.paymentId} className="bg-white rounded p-3 text-sm border border-red-100">
+                            <p><strong>Payment:</strong> {item.paymentId}</p>
+                            <p><strong>Amount:</strong> ${item.amount}</p>
+                            <p><strong>Date:</strong> {new Date(item.created * 1000).toLocaleDateString()}</p>
+                            <p><strong>Name:</strong> {item.name || <span className="text-gray-400">not in metadata</span>}</p>
+                            <p><strong>Email:</strong> {item.email || <span className="text-gray-400">not in metadata</span>}</p>
+                            {item.metadata.sessionIds && (
+                              <p><strong>Sessions:</strong> {item.metadata.sessionIds}</p>
+                            )}
+                            {item.metadata.className && (
+                              <p><strong>Class:</strong> {item.metadata.className}</p>
+                            )}
+                            <button
+                              disabled={creatingEnrollment === item.paymentId}
+                              onClick={async () => {
+                                setCreatingEnrollment(item.paymentId);
+                                try {
+                                  const res = await fetch('/api/admin/reconcile', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ paymentIntentId: item.paymentId })
+                                  });
+                                  const result = await res.json();
+                                  if (result.created?.length > 0) {
+                                    toast.success(`Created ${result.created.length} enrollment(s)`);
+                                    // Re-run reconciliation
+                                    const refreshRes = await fetch('/api/admin/reconcile');
+                                    setReconcileData(await refreshRes.json());
+                                    loadData();
+                                  } else {
+                                    toast.error(result.errors?.join(', ') || result.error || 'Failed to create enrollment');
+                                  }
+                                } catch {
+                                  toast.error('Failed to create enrollment');
+                                } finally {
+                                  setCreatingEnrollment(null);
+                                }
+                              }}
+                              className="mt-2 px-3 py-1.5 bg-primary-600 text-white text-sm rounded hover:bg-primary-700 disabled:opacity-50"
+                            >
+                              {creatingEnrollment === item.paymentId ? 'Creating...' : 'Create Enrollment'}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {reconcileData.missing.length === 0 && reconcileData.incomplete.length === 0 && (
+                    <p className="text-center text-gray-600 py-4">All Stripe payments are accounted for.</p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-center text-red-600">Failed to load reconciliation data.</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

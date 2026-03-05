@@ -298,17 +298,17 @@ export default function AdminDashboard() {
     );
   }
 
-  // Calculate stats
+  // Calculate stats — use ALL TIME totals based on payment_status only
   const totalRevenue = enrollments
-    .filter(e => e.payment_status === 'paid' && e.status !== 'cancelled')
-    .reduce((sum, e) => sum + (e.amount_paid || 0), 0);
+    .filter(e => e.payment_status === 'paid')
+    .reduce((sum, e) => sum + Number(e.amount_paid || 0), 0);
   const upcomingSessions = sessions.filter(s => {
     const sessionDate = new Date(s.date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     return sessionDate >= today && s.status === 'scheduled';
   }).length;
-  const totalEnrollments = enrollments.filter(e => e.status !== 'cancelled').length;
+  const totalEnrollments = enrollments.filter(e => e.payment_status === 'paid').length;
   const newInquiries = inquiries.filter(i => i.status === 'new').length;
 
   // Organize inquiries by status
@@ -397,7 +397,7 @@ export default function AdminDashboard() {
                 <h2 className="text-xl font-semibold mb-4">Recent Activity</h2>
                 <div className="space-y-4">
                   {enrollments
-                    .filter(enrollment => enrollment.status !== 'cancelled')
+                    .filter(enrollment => enrollment.payment_status === 'paid')
                     .slice(0, 5)
                     .map(enrollment => (
                     <div key={enrollment.id} className="flex justify-between items-center py-2 border-b">
@@ -409,17 +409,19 @@ export default function AdminDashboard() {
                         </p>
                       </div>
                       <span className={`px-2 py-1 rounded text-xs ${
-                        enrollment.status === 'completed' 
-                          ? 'bg-green-100 text-green-800' 
+                        enrollment.status === 'completed'
+                          ? 'bg-green-100 text-green-800'
                           : enrollment.status === 'cancelled'
                           ? 'bg-red-100 text-red-800'
+                          : enrollment.status === 'confirmed'
+                          ? 'bg-blue-100 text-blue-800'
                           : 'bg-yellow-100 text-yellow-800'
                       }`}>
                         {enrollment.status}
                       </span>
                     </div>
                   ))}
-                  {enrollments.filter(e => e.status !== 'cancelled').length === 0 && (
+                  {enrollments.filter(e => e.payment_status === 'paid').length === 0 && (
                     <p className="text-gray-500 italic">No active enrollments</p>
                   )}
                 </div>

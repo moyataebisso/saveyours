@@ -102,28 +102,11 @@ export const supabaseHelpers = {
   async getAllEnrollments() {
     const { data, error } = await supabase
       .from('enrollments')
-      .select(`
-        id,
-        user_id,
-        guest_email,
-        guest_name,
-        session_id,
-        enrolled_at,
-        status,
-        payment_status,
-        stripe_payment_intent_id,
-        amount_paid,
-        certification_expires,
-        completed_at,
-        online_course_completed,
-        session:class_sessions(
-          *,
-          class:classes(*)
-        )
-      `)
+      .select('*, session:class_sessions(*, class:classes(*))')
       .order('enrolled_at', { ascending: false })
 
-    // Supabase returns M2O relations as objects, normalize the type
+    console.log('Enrollments fetch result:', data?.length, 'Error:', error)
+
     return { data: data as unknown as Enrollment[] | null, error }
   },
 

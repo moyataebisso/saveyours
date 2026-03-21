@@ -374,6 +374,13 @@ export default function AdminDashboard() {
               Manage Vouchers
             </button>
             <button
+              onClick={() => router.push('/admin/change-requests')}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+            >
+              <MessageSquare className="w-4 h-4" />
+              Change Requests
+            </button>
+            <button
               onClick={handleLogout}
               className="text-gray-600 hover:text-gray-900"
             >

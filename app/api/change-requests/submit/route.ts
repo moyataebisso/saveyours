@@ -34,9 +34,9 @@ export async function POST(request: Request) {
   try {
     const resend = new Resend(process.env.RESEND_API_KEY)
     await resend.emails.send({
-      from: `Cimaa Sites <${process.env.RESEND_FROM_EMAIL}>`,
+      from: `Cimaa Sites <${process.env.RESEND_FROM_EMAIL || 'noreply@arsitechgroup.com'}>`,
       to: 'arsitechgroup@gmail.com',
-      subject: `🔧 SaveYours Change Request: ${requestType}`,
+      subject: `[SaveYours] New Change Request: ${requestType}`,
       html: `
         <h2>New change request for SaveYours</h2>
         <p><strong>Type:</strong> ${requestType}</p>
@@ -45,8 +45,9 @@ export async function POST(request: Request) {
         <p><small>ID: ${data.id}</small></p>
       `
     })
-  } catch (e) {
-    console.error('Email failed:', e)
+  } catch (e: any) {
+    console.error('Email failed:', e?.message || e)
+    // Don't fail the request — just log it
   }
 
   return Response.json({ success: true, id: data.id })

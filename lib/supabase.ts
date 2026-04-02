@@ -430,6 +430,27 @@ export const supabaseHelpers = {
     return { error }
   },
 
+  // Atomically enroll student only if capacity is available (prevents overbooking)
+  async enrollStudentIfCapacity(params: {
+    session_id: string
+    guest_name: string
+    guest_email: string
+    phone: string
+    stripe_payment_intent_id: string
+    amount_paid: number
+  }) {
+    const { data, error } = await supabase.rpc('enroll_student_if_capacity', {
+      p_session_id: params.session_id,
+      p_guest_name: params.guest_name,
+      p_guest_email: params.guest_email,
+      p_phone: params.phone,
+      p_stripe_payment_intent_id: params.stripe_payment_intent_id,
+      p_amount_paid: params.amount_paid,
+    })
+
+    return { data: data as { success: boolean; error?: string; enrollment_id?: string } | null, error }
+  },
+
   // Delete multiple vouchers
   async deleteVouchers(voucherIds: string[]) {
     const { error } = await supabase

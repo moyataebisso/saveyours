@@ -148,6 +148,81 @@ export async function sendAdminAlert(
   }
 }
 
+export async function sendRefundNotification(
+  to: string,
+  details: {
+    name: string
+    className: string
+    date: string
+    time: string
+    amountRefunded: string
+  }
+) {
+  const formattedDate = new Date(details.date).toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #DC2626; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; background-color: #f9f9f9; }
+        .notice { background-color: #fff3cd; padding: 15px; margin: 20px 0; border-left: 4px solid #ffc107; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <h1>Class Full - Refund Issued</h1>
+        </div>
+        <div class="content">
+          <p>Dear ${details.name},</p>
+          <p>We're sorry, but the class you registered for has reached full capacity:</p>
+          <table style="width:100%;border-collapse:collapse;margin:20px 0;">
+            <tr><td style="padding:10px;border-bottom:1px solid #ddd;font-weight:bold;width:30%;">Class:</td><td style="padding:10px;border-bottom:1px solid #ddd;">${details.className}</td></tr>
+            <tr><td style="padding:10px;border-bottom:1px solid #ddd;font-weight:bold;">Date:</td><td style="padding:10px;border-bottom:1px solid #ddd;">${formattedDate}</td></tr>
+            <tr><td style="padding:10px;border-bottom:1px solid #ddd;font-weight:bold;">Time:</td><td style="padding:10px;border-bottom:1px solid #ddd;">${details.time}</td></tr>
+          </table>
+          <div class="notice">
+            <strong>A full refund of ${details.amountRefunded} has been issued to your original payment method.</strong>
+            Please allow 5-10 business days for the refund to appear on your statement.
+          </div>
+          <p>We apologize for the inconvenience. Please visit <a href="https://saveyours.net/classes" style="color:#DC2626;">our website</a> to view other available class dates.</p>
+          <p>If you have any questions, please contact us at <a href="mailto:info@saveyours.net" style="color:#DC2626;">info@saveyours.net</a>.</p>
+          <div class="footer">
+            <p>SaveYours LLC | Minneapolis, MN</p>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `
+
+  const mailOptions = {
+    from: '"SaveYours Training" <info@saveyours.net>',
+    to,
+    subject: 'Class Full - Your Refund Has Been Processed - SaveYours',
+    html: htmlContent,
+  }
+
+  try {
+    const info = await getTransporter().sendMail(mailOptions)
+    console.log('Refund notification email sent:', info.messageId)
+    return { success: true, messageId: info.messageId }
+  } catch (error) {
+    console.error('Refund notification email error:', error)
+    return { success: false, error }
+  }
+}
+
 export async function sendVoucherEmail(
   to: string,
   voucherDetails: {

@@ -84,29 +84,10 @@ function CheckoutForm({ sessions, totalAmount, paymentIntentId }: CheckoutFormPr
     }
 
     if (paymentIntent && paymentIntent.status === 'succeeded') {
-      try {
-        // Create enrollment for each session
-        for (const session of sessions) {
-          await fetch('/api/enrollment/create', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              sessionId: session.id,
-              email: formData.email,
-              name: formData.name,
-              phone: formData.phone,
-              paymentIntentId: paymentIntent.id
-            })
-          });
-        }
-
-        localStorage.removeItem('cart');
-        window.dispatchEvent(new Event('storage'));
-        router.push(`/success?payment_intent=${paymentIntent.id}`);
-      } catch (err) {
-        toast.error('Failed to complete enrollment');
-        setLoading(false);
-      }
+      // Enrollment is handled by the Stripe webhook (server-side) to prevent race conditions
+      localStorage.removeItem('cart');
+      window.dispatchEvent(new Event('storage'));
+      router.push(`/success?payment_intent=${paymentIntent.id}`);
     }
   };
 
@@ -216,8 +197,10 @@ export default function CartPage() {
   const [paymentIntentId, setPaymentIntentId] = useState('');
   const [loading, setLoading] = useState(true);
   const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
+  const [fullSessions, setFullSessions] = useState<Set<string>>(new Set());
 
   const totalAmount = cartItems.reduce((sum, item) => sum + (item.class?.price || 0), 0);
+  const hasFullSessions = fullSessions.size > 0;
 
   const removeFromCart = async (sessionId: string) => {
     const updatedCart = cartItems.filter(item => item.id !== sessionId);
@@ -296,23 +279,41 @@ export default function CartPage() {
     // Create payment intent for total amount with ALL session IDs
     const total = cart.reduce((sum, item) => sum + (item.class?.price || 0), 0);
 
+    // Re-check capacity for all sessions before creating payment intent
     fetch('/api/payment/create-intent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        sessionIds: cart.map(item => item.id), // Pass ALL session IDs
+        sessionIds: cart.map(item => item.id),
         totalAmount: total
       })
     })
-    .then(res => res.json())
-    .then(data => {
-      if (data.error) {
-        toast.error(data.error);
-        router.push('/classes');
-      } else {
+    .then(res => res.json().then(data => ({ ok: res.ok, data })))
+    .then(({ ok, data }) => {
+      if (!ok && data.error) {
+        // Check if a specific class is full
+        if (data.error.includes('is full')) {
+          toast.error(data.error);
+          // Mark the full session(s) so the UI can show which ones
+          const fullSet = new Set<string>();
+          for (const item of cart) {
+            if (data.error.includes(item.class.name)) {
+              fullSet.add(item.id);
+            }
+          }
+          setFullSessions(fullSet);
+          setLoading(false);
+        } else {
+          toast.error(data.error);
+          router.push('/classes');
+        }
+      } else if (data.clientSecret) {
         setClientSecret(data.clientSecret);
         setPaymentIntentId(data.paymentIntentId);
         setLoading(false);
+      } else {
+        toast.error('Failed to initialize checkout');
+        router.push('/classes');
       }
     })
     .catch(err => {
@@ -354,7 +355,7 @@ export default function CartPage() {
               
               <div className="space-y-3">
                 {cartItems.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div key={item.id} className={`flex items-center justify-between p-4 rounded-lg ${fullSessions.has(item.id) ? 'bg-red-50 border border-red-200' : 'bg-gray-50'}`}>
                     <div className="flex-1">
                       <h3 className="font-medium">{item.class.name}</h3>
                       <p className="text-sm text-gray-600 mt-1">
@@ -367,6 +368,9 @@ export default function CartPage() {
                       <p className="text-sm text-gray-600">
                         {item.class.audience === 'healthcare' ? 'Healthcare' : 'General Public'}
                       </p>
+                      {fullSessions.has(item.id) && (
+                        <p className="text-sm font-semibold text-red-600 mt-1">This class is now full</p>
+                      )}
                     </div>
                     <div className="flex items-center gap-4">
                       <span className="font-semibold">${item.class.price}</span>
@@ -383,28 +387,46 @@ export default function CartPage() {
               </div>
             </div>
 
+            {/* Full Session Warning */}
+            {hasFullSessions && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-6">
+                <h3 className="text-lg font-semibold text-red-800 mb-2">Sorry, this class is now full</h3>
+                <p className="text-red-700 mb-4">
+                  One or more classes in your cart have reached full capacity. Please remove the full class(es) and choose a different date, or check back later for availability.
+                </p>
+                <a
+                  href="/classes"
+                  className="inline-block bg-primary-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-primary-700 transition-colors"
+                >
+                  Browse Available Classes
+                </a>
+              </div>
+            )}
+
             {/* Checkout Form */}
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <Elements
-                key={clientSecret}
-                stripe={stripePromise}
-                options={{
-                  clientSecret,
-                  appearance: {
-                    theme: 'stripe',
-                    variables: {
-                      colorPrimary: '#DC2626',
+            {!hasFullSessions && clientSecret && (
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <Elements
+                  key={clientSecret}
+                  stripe={stripePromise}
+                  options={{
+                    clientSecret,
+                    appearance: {
+                      theme: 'stripe',
+                      variables: {
+                        colorPrimary: '#DC2626',
+                      },
                     },
-                  },
-                }}
-              >
-                <CheckoutForm 
-                  sessions={cartItems}
-                  totalAmount={totalAmount}
-                  paymentIntentId={paymentIntentId}
-                />
-              </Elements>
-            </div>
+                  }}
+                >
+                  <CheckoutForm
+                    sessions={cartItems}
+                    totalAmount={totalAmount}
+                    paymentIntentId={paymentIntentId}
+                  />
+                </Elements>
+              </div>
+            )}
           </div>
 
           {/* Order Summary */}

@@ -8,7 +8,11 @@
       "Bash(npx next:*)",
       "Bash(./node_modules/.bin/next lint:*)",
       "Bash(node:*)",
-      "Bash(xargs ls:*)"
+      "Bash(xargs ls:*)",
+      "Bash(npm run:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }

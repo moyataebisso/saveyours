@@ -17,7 +17,7 @@ export default function HomePage() {
               {/* New: Enrollment Badge */}
               <div className="inline-flex items-center bg-white/80 backdrop-blur px-4 py-2 rounded-full mb-6">
                 <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse mr-2"></span>
-                <span className="text-sm font-medium text-gray-700">Now Enrolling for Winter Classes</span>
+                <span className="text-sm font-medium text-gray-700">Now Enrolling for Spring Classes</span>
               </div>
               
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-gray-900 mb-6 animate-fade-in-up">

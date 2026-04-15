@@ -430,6 +430,35 @@ export const supabaseHelpers = {
     return { error }
   },
 
+  // Look up an existing enrollment by payment intent + session (for dedupe between
+  // the checkout success flow and the Stripe webhook fallback)
+  async getEnrollmentByPaymentIntent(paymentIntentId: string, sessionId: string) {
+    const { data, error } = await supabase
+      .from('enrollments')
+      .select('*')
+      .eq('stripe_payment_intent_id', paymentIntentId)
+      .eq('session_id', sessionId)
+      .maybeSingle()
+
+    return { data: data as Enrollment | null, error }
+  },
+
+  // Update just the payment_status on an enrollment (used by webhook to confirm
+  // a 'pending' enrollment as 'paid' once Stripe confirms the payment)
+  async updateEnrollmentPaymentStatus(
+    enrollmentId: string,
+    paymentStatus: 'pending' | 'paid' | 'refunded'
+  ) {
+    const { data, error } = await supabase
+      .from('enrollments')
+      .update({ payment_status: paymentStatus })
+      .eq('id', enrollmentId)
+      .select()
+      .single()
+
+    return { data: data as Enrollment | null, error }
+  },
+
   // Atomically enroll student only if capacity is available (prevents overbooking)
   async enrollStudentIfCapacity(params: {
     session_id: string

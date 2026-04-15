@@ -62,100 +62,137 @@ export async function POST(req: NextRequest) {
       sessionIds = [metadata.sessionId];
     }
 
-    // Create enrollment for EACH session using atomic capacity check
-    const enrolledClasses: { className: string; date: string; time: string }[] = [];
-    const refundedSessions: { className: string; date: string; time: string; price: number }[] = [];
+    // The checkout success flow (app/api/enrollment/create) is now the primary
+    // creator of enrollments + sender of emails. This webhook's job is:
+    //   1. If an enrollment already exists for a given paymentIntent+session,
+    //      just confirm the payment by flipping payment_status to 'paid'.
+    //   2. If no enrollment exists (checkout flow failed or never ran), run
+    //      the full fallback: create the enrollment, assign voucher, send
+    //      voucher email, and send the confirmation email.
+    //
+    // Tracking which sessions the webhook CREATED (vs. merely confirmed) lets
+    // us avoid sending a duplicate confirmation email in the happy path.
+    const createdByWebhook: { className: string; date: string; time: string }[] = []
+    const refundedSessions: { className: string; date: string; time: string; price: number }[] = []
 
     for (const sessionId of sessionIds) {
       const { data: session } = await supabaseHelpers.getSessionById(sessionId);
+      if (!session) {
+        console.warn('[WEBHOOK] Session not found:', sessionId);
+        continue;
+      }
 
-      if (session) {
-        // Atomic enrollment: check capacity + insert in a single transaction
-        const { data: result, error: rpcError } = await supabaseHelpers.enrollStudentIfCapacity({
-          session_id: sessionId,
-          guest_name: name,
-          guest_email: email,
-          phone,
-          stripe_payment_intent_id: paymentIntent.id,
-          amount_paid: session.class.price,
+      // Happy path: checkout flow already created this enrollment.
+      const { data: existing, error: lookupError } = await supabaseHelpers.getEnrollmentByPaymentIntent(
+        paymentIntent.id,
+        sessionId
+      );
+
+      if (lookupError) {
+        console.error('[WEBHOOK] Error looking up existing enrollment:', lookupError);
+      }
+
+      if (existing) {
+        const { error: statusError } = await supabaseHelpers.updateEnrollmentPaymentStatus(
+          existing.id,
+          'paid'
+        );
+        if (statusError) {
+          console.error('[WEBHOOK] Failed to flip payment_status to paid:', statusError);
+        } else {
+          console.log('[WEBHOOK] Enrollment confirmed (payment_status=paid):', existing.id);
+        }
+        // Checkout flow has already sent emails — do NOT resend here.
+        continue;
+      }
+
+      // Fallback path: checkout flow did not create this enrollment.
+      console.warn('[WEBHOOK] No enrollment found — running fallback:', {
+        paymentIntentId: paymentIntent.id,
+        sessionId,
+        email,
+      });
+
+      const { data: result, error: rpcError } = await supabaseHelpers.enrollStudentIfCapacity({
+        session_id: sessionId,
+        guest_name: name,
+        guest_email: email,
+        phone,
+        stripe_payment_intent_id: paymentIntent.id,
+        amount_paid: session.class.price,
+      });
+
+      if (rpcError) {
+        console.error('❌ [WEBHOOK] RPC error for session:', { rpcError, sessionId, email });
+        continue;
+      }
+
+      if (result && result.success) {
+        console.log('🎟️ [WEBHOOK] Fallback enrollment created:', {
+          enrollmentId: result.enrollment_id,
+          sessionId,
+          email,
         });
 
-        if (rpcError) {
-          console.error('❌ [WEBHOOK] RPC error for session:', { rpcError, sessionId, email });
-          continue;
-        }
-
-        if (result && result.success) {
-          console.log('🎟️ [WEBHOOK] Enrollment created successfully:', {
-            enrollmentId: result.enrollment_id,
-            sessionId,
-            email
-          });
-
-          enrolledClasses.push({
-            className: session.class.name,
-            date: session.date,
-            time: session.start_time
-          });
-
-          // Try to assign and send voucher for each session
-          console.log('🎟️ [WEBHOOK] Starting voucher assignment process for session:', sessionId);
-          try {
-            const { data: voucher, error: voucherError } = await supabaseHelpers.getAvailableVoucher(sessionId);
-
-            console.log('🎟️ [WEBHOOK] getAvailableVoucher returned:', {
-              hasVoucher: !!voucher,
-              voucherId: voucher?.id,
-              voucherError
-            });
-
-            if (voucherError) {
-              console.error('🎟️ [WEBHOOK] Error getting available voucher:', voucherError);
-            }
-
-            if (voucher) {
-              console.log('🎟️ [WEBHOOK] Found voucher, attempting to assign:', voucher.id);
-              const { data: assignedVoucher, error: assignError } = await supabaseHelpers.assignVoucher(voucher.id, email);
-
-              console.log('🎟️ [WEBHOOK] assignVoucher returned:', {
-                success: !assignError,
-                assignedVoucher: assignedVoucher?.id,
-                assignError
-              });
-
-              if (!assignError) {
-                console.log('🎟️ [WEBHOOK] Voucher assigned, sending email...');
-                const emailResult = await sendVoucherEmail(email, {
-                  name,
-                  className: session.class.name,
-                  date: session.date,
-                  time: session.start_time,
-                  voucherUrl: voucher.voucher_url,
-                });
-                console.log('🎟️ [WEBHOOK] Voucher email result:', emailResult);
-                console.log(`✅ Voucher email sent to ${email} for session ${sessionId}`);
-              } else {
-                console.error('❌ [WEBHOOK] Failed to assign voucher:', assignError);
-              }
-            } else {
-              console.warn(`⚠️ [WEBHOOK] No available voucher for session ${sessionId} - student ${email} will need manual voucher assignment`);
-            }
-          } catch (voucherError) {
-            console.error('❌ [WEBHOOK] Voucher assignment error (non-fatal):', voucherError);
+        // Webhook is the authoritative confirmation — mark paid immediately.
+        if (result.enrollment_id) {
+          const { error: statusError } = await supabaseHelpers.updateEnrollmentPaymentStatus(
+            result.enrollment_id,
+            'paid'
+          );
+          if (statusError) {
+            console.error('[WEBHOOK] Failed to set payment_status=paid on fallback enrollment:', statusError);
           }
-        } else if (result && result.error === 'CLASS_FULL') {
-          // Class is full — payment already charged, so issue a refund
-          console.warn(`⚠️ [WEBHOOK] CLASS_FULL for session ${sessionId} — issuing refund for ${email}`);
-
-          refundedSessions.push({
-            className: session.class.name,
-            date: session.date,
-            time: session.start_time,
-            price: session.class.price
-          });
-        } else {
-          console.error('❌ [WEBHOOK] Enrollment failed:', { result, sessionId, email });
         }
+
+        createdByWebhook.push({
+          className: session.class.name,
+          date: session.date,
+          time: session.start_time,
+        });
+
+        // Fallback voucher assignment + email.
+        console.log('🎟️ [WEBHOOK] Starting voucher assignment (fallback) for session:', sessionId);
+        try {
+          const { data: voucher, error: voucherError } = await supabaseHelpers.getAvailableVoucher(sessionId);
+
+          if (voucherError) {
+            console.error('🎟️ [WEBHOOK] Error getting available voucher:', voucherError);
+          }
+
+          if (voucher) {
+            const { error: assignError } = await supabaseHelpers.assignVoucher(voucher.id, email);
+
+            if (!assignError) {
+              const emailResult = await sendVoucherEmail(email, {
+                name,
+                className: session.class.name,
+                date: session.date,
+                time: session.start_time,
+                voucherUrl: voucher.voucher_url,
+              });
+              console.log('🎟️ [WEBHOOK] Voucher email result:', emailResult);
+            } else {
+              console.error('❌ [WEBHOOK] Failed to assign voucher:', assignError);
+            }
+          } else {
+            console.warn(`⚠️ [WEBHOOK] No available voucher for session ${sessionId} — manual assignment required for ${email}`);
+          }
+        } catch (voucherError) {
+          console.error('❌ [WEBHOOK] Voucher assignment error (non-fatal):', voucherError);
+        }
+      } else if (result && result.error === 'CLASS_FULL') {
+        // Class is full — payment already charged, so issue a refund
+        console.warn(`⚠️ [WEBHOOK] CLASS_FULL for session ${sessionId} — issuing refund for ${email}`);
+
+        refundedSessions.push({
+          className: session.class.name,
+          date: session.date,
+          time: session.start_time,
+          price: session.class.price,
+        });
+      } else {
+        console.error('❌ [WEBHOOK] Enrollment failed:', { result, sessionId, email });
       }
     }
 
@@ -219,13 +256,15 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Send single confirmation email with first enrolled class info
-    if (enrolledClasses.length > 0) {
+    // Send a confirmation email ONLY if the webhook actually created enrollments
+    // (i.e., the checkout flow failed). In the happy path, the checkout route
+    // has already sent this email and createdByWebhook is empty.
+    if (createdByWebhook.length > 0) {
       await sendEnrollmentConfirmation(email, {
         name,
-        className: enrolledClasses[0].className,
-        date: enrolledClasses[0].date,
-        time: enrolledClasses[0].time,
+        className: createdByWebhook[0].className,
+        date: createdByWebhook[0].date,
+        time: createdByWebhook[0].time,
       });
     }
   }

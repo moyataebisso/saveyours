@@ -84,7 +84,30 @@ function CheckoutForm({ sessions, totalAmount, paymentIntentId }: CheckoutFormPr
     }
 
     if (paymentIntent && paymentIntent.status === 'succeeded') {
-      // Enrollment is handled by the Stripe webhook (server-side) to prevent race conditions
+      // Primary enrollment + email path. The Stripe webhook is a fallback
+      // (see app/api/webhook/stripe/route.ts), so if this call fails we log
+      // but never block the user — they paid successfully.
+      try {
+        const enrollRes = await fetch('/api/enrollment/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionIds: sessions.map(s => s.id),
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone || '',
+            paymentIntentId: paymentIntent.id,
+          }),
+        });
+
+        if (!enrollRes.ok) {
+          const errData = await enrollRes.json().catch(() => ({}));
+          console.error('Enrollment create failed; webhook will fallback:', errData);
+        }
+      } catch (enrollErr) {
+        console.error('Enrollment create threw; webhook will fallback:', enrollErr);
+      }
+
       localStorage.removeItem('cart');
       window.dispatchEvent(new Event('storage'));
       router.push(`/success?payment_intent=${paymentIntent.id}`);

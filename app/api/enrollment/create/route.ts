@@ -1,102 +1,158 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseHelpers } from '@/lib/supabase'
-import { stripe } from '@/lib/stripe-server'  // Changed from '@/lib/stripe'
+import { stripe } from '@/lib/stripe-server'
 import { sendEnrollmentConfirmation, sendVoucherEmail } from '@/lib/email'
 
+// Called from the checkout success flow (app/cart/page.tsx) immediately after
+// stripe.confirmPayment() resolves. This is now the PRIMARY path for creating
+// enrollments and sending confirmation/voucher emails — the Stripe webhook
+// acts as a fallback (see app/api/webhook/stripe/route.ts).
+//
+// Enrollments are created with payment_status='pending'; the webhook flips
+// them to 'paid' once Stripe delivers the payment_intent.succeeded event.
 export async function POST(req: NextRequest) {
   try {
-    const { 
-      sessionId, 
-      email, 
-      name, 
+    const {
+      sessionIds,
+      sessionId,
+      email,
+      name,
       phone,
-      paymentIntentId 
+      paymentIntentId,
     } = await req.json()
 
-    // Verify the payment with Stripe
+    // Accept either a single sessionId (legacy) or an array of sessionIds
+    const ids: string[] = Array.isArray(sessionIds) && sessionIds.length > 0
+      ? sessionIds
+      : (sessionId ? [sessionId] : [])
+
+    if (ids.length === 0 || !email || !name || !paymentIntentId) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    }
+
+    // Verify the payment actually succeeded in Stripe before touching the DB.
+    // This prevents anyone from POSTing arbitrary paymentIntentIds to create
+    // fake enrollments.
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
-    
     if (paymentIntent.status !== 'succeeded') {
       return NextResponse.json({ error: 'Payment not confirmed' }, { status: 400 })
     }
 
-    // Get session details
-    const { data: session } = await supabaseHelpers.getSessionById(sessionId)
-    
-    if (!session) {
-      return NextResponse.json({ error: 'Session not found' }, { status: 404 })
-    }
+    const enrolledClasses: { className: string; date: string; time: string }[] = []
 
-    // Create enrollment in database
-    const { data: enrollment, error } = await supabaseHelpers.createEnrollment({
-      session_id: sessionId,
-      guest_email: email,
-      guest_name: name,
-      amount_paid: paymentIntent.amount / 100,
-      stripe_payment_intent_id: paymentIntent.id,
-    })
+    for (const sid of ids) {
+      // If the webhook beat us to this enrollment (rare, but possible on slow
+      // clients / fast webhook delivery), skip to avoid duplicate emails.
+      const { data: existing } = await supabaseHelpers.getEnrollmentByPaymentIntent(
+        paymentIntent.id,
+        sid
+      )
+      if (existing) {
+        console.log(
+          `[ENROLLMENT] Enrollment already exists for ${paymentIntent.id}/${sid} — webhook handled it`
+        )
+        continue
+      }
 
-    if (error) {
-      console.error('Enrollment error:', error)
-      return NextResponse.json({ error: 'Failed to create enrollment' }, { status: 500 })
-    }
+      const { data: session } = await supabaseHelpers.getSessionById(sid)
+      if (!session) {
+        console.error(`[ENROLLMENT] Session not found: ${sid}`)
+        continue
+      }
 
-    // Send confirmation email
-    await sendEnrollmentConfirmation(email, {
-      name,
-      className: session.class.name,
-      date: session.date,
-      time: `${session.start_time} - ${session.end_time}`,
-    })
-
-    // Assign and send voucher
-    console.log('🎟️ [ENROLLMENT] Starting voucher assignment for session:', sessionId)
-    try {
-      const { data: voucher, error: voucherError } = await supabaseHelpers.getAvailableVoucher(sessionId)
-
-      console.log('🎟️ [ENROLLMENT] getAvailableVoucher returned:', {
-        hasVoucher: !!voucher,
-        voucherId: voucher?.id,
-        voucherError
+      // Use the atomic RPC for the capacity check + insert so we can't overbook
+      // even under concurrent checkouts.
+      const { data: result, error: rpcError } = await supabaseHelpers.enrollStudentIfCapacity({
+        session_id: sid,
+        guest_name: name,
+        guest_email: email,
+        phone: phone || '',
+        stripe_payment_intent_id: paymentIntent.id,
+        amount_paid: session.class.price,
       })
 
-      if (voucherError) {
-        console.error('🎟️ [ENROLLMENT] Error getting available voucher:', voucherError)
+      if (rpcError) {
+        console.error('[ENROLLMENT] RPC error for session:', { rpcError, sid, email })
+        continue
       }
 
-      if (voucher) {
-        console.log('🎟️ [ENROLLMENT] Found voucher, attempting to assign:', voucher.id)
-        const { data: assignedVoucher, error: assignError } = await supabaseHelpers.assignVoucher(voucher.id, email)
-
-        console.log('🎟️ [ENROLLMENT] assignVoucher returned:', {
-          success: !assignError,
-          assignedVoucher: assignedVoucher?.id,
-          assignError
+      if (!result || !result.success) {
+        // CLASS_FULL or other failure — the webhook will catch this case and
+        // issue the refund + send the refund-notification email.
+        console.warn('[ENROLLMENT] Enrollment did not succeed; leaving to webhook:', {
+          result,
+          sid,
+          email,
         })
-
-        if (!assignError) {
-          console.log('🎟️ [ENROLLMENT] Voucher assigned, sending email...')
-          const emailResult = await sendVoucherEmail(email, {
-            name,
-            className: session.class.name,
-            date: session.date,
-            time: `${session.start_time} - ${session.end_time}`,
-            voucherUrl: voucher.voucher_url,
-          })
-          console.log('🎟️ [ENROLLMENT] Voucher email result:', emailResult)
-          console.log(`✅ Voucher email sent to ${email} for session ${sessionId}`)
-        } else {
-          console.error('❌ [ENROLLMENT] Failed to assign voucher:', assignError)
-        }
-      } else {
-        console.warn(`⚠️ [ENROLLMENT] No available voucher for session ${sessionId} - student ${email} will need manual voucher assignment`)
+        continue
       }
-    } catch (voucherError) {
-      console.error('❌ [ENROLLMENT] Voucher assignment error (non-fatal):', voucherError)
-      // Don't fail the enrollment if voucher assignment fails
+
+      // Payment hasn't been confirmed by the webhook yet — mark pending.
+      // The webhook will flip this to 'paid'.
+      if (result.enrollment_id) {
+        const { error: statusError } = await supabaseHelpers.updateEnrollmentPaymentStatus(
+          result.enrollment_id,
+          'pending'
+        )
+        if (statusError) {
+          console.error('[ENROLLMENT] Failed to set payment_status=pending:', statusError)
+        }
+      }
+
+      enrolledClasses.push({
+        className: session.class.name,
+        date: session.date,
+        time: session.start_time,
+      })
+
+      // Assign and send the voucher email for this session. Voucher failures
+      // are non-fatal — admin can assign manually from the dashboard.
+      try {
+        const { data: voucher, error: voucherError } = await supabaseHelpers.getAvailableVoucher(sid)
+        if (voucherError) {
+          console.error('[ENROLLMENT] Error fetching available voucher:', voucherError)
+        }
+
+        if (voucher) {
+          const { error: assignError } = await supabaseHelpers.assignVoucher(voucher.id, email)
+          if (!assignError) {
+            await sendVoucherEmail(email, {
+              name,
+              className: session.class.name,
+              date: session.date,
+              time: session.start_time,
+              voucherUrl: voucher.voucher_url,
+            })
+            console.log(`[ENROLLMENT] Voucher email sent to ${email} for session ${sid}`)
+          } else {
+            console.error('[ENROLLMENT] Failed to assign voucher:', assignError)
+          }
+        } else {
+          console.warn(
+            `[ENROLLMENT] No available voucher for session ${sid} — manual assignment required for ${email}`
+          )
+        }
+      } catch (voucherError) {
+        console.error('[ENROLLMENT] Voucher assignment error (non-fatal):', voucherError)
+      }
     }
 
-    return NextResponse.json({ success: true, enrollmentId: enrollment?.id })
+    // Send ONE confirmation email covering the first enrolled class. Only
+    // sent if this request actually created an enrollment — otherwise the
+    // webhook path will have already sent it.
+    if (enrolledClasses.length > 0) {
+      await sendEnrollmentConfirmation(email, {
+        name,
+        className: enrolledClasses[0].className,
+        date: enrolledClasses[0].date,
+        time: enrolledClasses[0].time,
+      })
+    }
+
+    return NextResponse.json({
+      success: true,
+      enrolledCount: enrolledClasses.length,
+    })
   } catch (error) {
     console.error('Enrollment creation error:', error)
     return NextResponse.json({ error: 'Server error' }, { status: 500 })

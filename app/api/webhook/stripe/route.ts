@@ -73,7 +73,6 @@ export async function POST(req: NextRequest) {
     // Tracking which sessions the webhook CREATED (vs. merely confirmed) lets
     // us avoid sending a duplicate confirmation email in the happy path.
     const createdByWebhook: { className: string; date: string; time: string }[] = []
-    const refundedSessions: { className: string; date: string; time: string; price: number }[] = []
 
     for (const sessionId of sessionIds) {
       const { data: session } = await supabaseHelpers.getSessionById(sessionId);
@@ -182,77 +181,27 @@ export async function POST(req: NextRequest) {
           console.error('❌ [WEBHOOK] Voucher assignment error (non-fatal):', voucherError);
         }
       } else if (result && result.error === 'CLASS_FULL') {
-        // Class is full — payment already charged, so issue a refund
-        console.warn(`⚠️ [WEBHOOK] CLASS_FULL for session ${sessionId} — issuing refund for ${email}`);
+        // Class is full — payment was already charged. We do NOT auto-refund.
+        // Alert admin so the overbooking can be resolved manually.
+        console.warn(`⚠️ [WEBHOOK] CLASS_FULL for session ${sessionId} — manual handling required for ${email}`);
 
-        refundedSessions.push({
-          className: session.class.name,
-          date: session.date,
-          time: session.start_time,
-          price: session.class.price,
-        });
+        await sendAdminAlert(
+          '⚠️ SaveYours - Overbooking Detected (Manual Review Required)',
+          `<h2>Overbooking Detected</h2>
+          <p>A student was charged for a class that is already full. <strong>No automatic refund was issued</strong> — please review and handle this manually.</p>
+          <table style="border-collapse:collapse;margin:16px 0;">
+            <tr><td style="padding:8px;font-weight:bold;">Student:</td><td style="padding:8px;">${name} (${email})</td></tr>
+            <tr><td style="padding:8px;font-weight:bold;">Phone:</td><td style="padding:8px;">${phone || 'N/A'}</td></tr>
+            <tr><td style="padding:8px;font-weight:bold;">Payment Intent:</td><td style="padding:8px;">${paymentIntent.id}</td></tr>
+            <tr><td style="padding:8px;font-weight:bold;">Amount Paid (Stripe):</td><td style="padding:8px;">$${(paymentIntent.amount / 100).toFixed(2)}</td></tr>
+            <tr><td style="padding:8px;font-weight:bold;">Full Session:</td><td style="padding:8px;">${session.class.name}</td></tr>
+            <tr><td style="padding:8px;font-weight:bold;">Session Date/Time:</td><td style="padding:8px;">${session.date} at ${session.start_time}</td></tr>
+            <tr><td style="padding:8px;font-weight:bold;">Session Price:</td><td style="padding:8px;">$${session.class.price}</td></tr>
+          </table>
+          <p>Contact the student and, if appropriate, issue a refund via the Stripe dashboard.</p>`
+        ).catch(err => console.error('Failed to send overbooking admin alert:', err));
       } else {
         console.error('❌ [WEBHOOK] Enrollment failed:', { result, sessionId, email });
-      }
-    }
-
-    // If any sessions were full, issue a refund for those amounts
-    if (refundedSessions.length > 0) {
-      try {
-        // If ALL sessions were full, refund the entire payment
-        // If only some were full, do a partial refund for the full sessions
-        if (refundedSessions.length === sessionIds.length) {
-          // Full refund
-          await stripe.refunds.create({ payment_intent: paymentIntent.id });
-          console.log(`💰 [WEBHOOK] Full refund issued for payment ${paymentIntent.id}`);
-        } else {
-          // Partial refund for the sessions that were full
-          const refundAmount = refundedSessions.reduce((sum, s) => sum + s.price, 0);
-          await stripe.refunds.create({
-            payment_intent: paymentIntent.id,
-            amount: Math.round(refundAmount * 100), // Convert to cents
-          });
-          console.log(`💰 [WEBHOOK] Partial refund of $${refundAmount} issued for payment ${paymentIntent.id}`);
-        }
-
-        // Send refund notification email for each full session
-        for (const refundedSession of refundedSessions) {
-          await sendRefundNotification(email, {
-            name,
-            className: refundedSession.className,
-            date: refundedSession.date,
-            time: refundedSession.time,
-            amountRefunded: `$${refundedSession.price}`,
-          });
-        }
-
-        // Alert admin about the overbooking attempt
-        await sendAdminAlert(
-          '⚠️ SaveYours - Overbooking Prevented (Refund Issued)',
-          `<h2>Overbooking Prevented</h2>
-          <p>A student was charged but the class was full. A refund has been issued automatically.</p>
-          <table style="border-collapse:collapse;margin:16px 0;">
-            <tr><td style="padding:8px;font-weight:bold;">Student:</td><td style="padding:8px;">${name} (${email})</td></tr>
-            <tr><td style="padding:8px;font-weight:bold;">Payment Intent:</td><td style="padding:8px;">${paymentIntent.id}</td></tr>
-            <tr><td style="padding:8px;font-weight:bold;">Sessions Full:</td><td style="padding:8px;">${refundedSessions.map(s => s.className).join(', ')}</td></tr>
-            <tr><td style="padding:8px;font-weight:bold;">Refund Amount:</td><td style="padding:8px;">$${refundedSessions.reduce((sum, s) => sum + s.price, 0)}</td></tr>
-          </table>`
-        ).catch(err => console.error('Failed to send admin alert:', err));
-      } catch (refundError) {
-        console.error('❌ [WEBHOOK] CRITICAL: Failed to issue refund for overbooking:', refundError);
-        // Alert admin about failed refund — needs manual intervention
-        await sendAdminAlert(
-          '🚨 SaveYours - URGENT: Refund Failed for Overbooked Student',
-          `<h2>URGENT: Refund Failed</h2>
-          <p>A student was charged for a full class but the automatic refund FAILED. Manual refund required.</p>
-          <table style="border-collapse:collapse;margin:16px 0;">
-            <tr><td style="padding:8px;font-weight:bold;">Student:</td><td style="padding:8px;">${name} (${email})</td></tr>
-            <tr><td style="padding:8px;font-weight:bold;">Payment Intent:</td><td style="padding:8px;">${paymentIntent.id}</td></tr>
-            <tr><td style="padding:8px;font-weight:bold;">Sessions Full:</td><td style="padding:8px;">${refundedSessions.map(s => s.className).join(', ')}</td></tr>
-            <tr><td style="padding:8px;font-weight:bold;">Error:</td><td style="padding:8px;">${refundError instanceof Error ? refundError.message : 'Unknown'}</td></tr>
-          </table>
-          <p><strong>Please issue a manual refund in the Stripe dashboard immediately.</strong></p>`
-        ).catch(err => console.error('Failed to send admin alert:', err));
       }
     }
 

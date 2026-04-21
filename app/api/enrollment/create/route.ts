@@ -141,12 +141,50 @@ export async function POST(req: NextRequest) {
     // sent if this request actually created an enrollment — otherwise the
     // webhook path will have already sent it.
     if (enrolledClasses.length > 0) {
-      await sendEnrollmentConfirmation(email, {
-        name,
-        className: enrolledClasses[0].className,
-        date: enrolledClasses[0].date,
-        time: enrolledClasses[0].time,
-      })
+      try {
+        console.log('[ENROLLMENT] Attempting to send confirmation email', {
+          to: email,
+          className: enrolledClasses[0].className,
+          emailUserSet: !!process.env.EMAIL_USER,
+          emailPassSet: !!process.env.EMAIL_PASS,
+          emailHostSet: !!process.env.EMAIL_HOST,
+        })
+        const result = await sendEnrollmentConfirmation(email, {
+          name,
+          className: enrolledClasses[0].className,
+          date: enrolledClasses[0].date,
+          time: enrolledClasses[0].time,
+        })
+        if (!result?.success) {
+          const err = (result as { error?: unknown })?.error as
+            | { message?: string; code?: string; command?: string; response?: string; responseCode?: number; stack?: string }
+            | undefined
+          console.error('[ENROLLMENT] Confirmation email returned failure', {
+            to: email,
+            errorMessage: err?.message,
+            errorCode: err?.code,
+            errorCommand: err?.command,
+            errorResponse: err?.response,
+            errorResponseCode: err?.responseCode,
+            errorStack: err?.stack,
+            rawError: err,
+          })
+        } else {
+          console.log('[ENROLLMENT] Confirmation email sent successfully to', email)
+        }
+      } catch (emailError) {
+        const err = emailError as { message?: string; code?: string; command?: string; response?: string; responseCode?: number; stack?: string }
+        console.error('[ENROLLMENT] Confirmation email threw exception', {
+          to: email,
+          errorMessage: err?.message,
+          errorCode: err?.code,
+          errorCommand: err?.command,
+          errorResponse: err?.response,
+          errorResponseCode: err?.responseCode,
+          errorStack: err?.stack,
+          rawError: emailError,
+        })
+      }
     }
 
     return NextResponse.json({

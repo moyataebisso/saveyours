@@ -32,7 +32,7 @@ async function testAllEmails() {
     className: 'Blended Adult First Aid/CPR/AED-BL-r.21',
     date: '2025-02-01',
     time: '6:00 PM - 7:30 PM',
-    location: '5450 W 41st St, Minneapolis, MN 55416'
+    location: '10800 Lyndale Ave S Suite 310, Bloomington, MN 55420'
   })
   console.log(`   Result: ${enrollmentResult.success ? 'SUCCESS' : 'FAILED'}`)
   if (!enrollmentResult.success) console.log(`   Error:`, enrollmentResult.error)

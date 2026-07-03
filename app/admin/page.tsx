@@ -984,7 +984,7 @@ function AddSessionModal({ classes, onClose }: { classes: Class[], onClose: () =
     date: '',
     start_time: '',
     end_time: '',
-    location: '5450 W 41st St, Minneapolis, MN 55416',
+    location: '10800 Lyndale Ave S Suite 310, Bloomington, MN 55420',
     max_capacity: 12
   });
 
@@ -1101,7 +1101,7 @@ function EditSessionModal({ session, classes, onClose }: { session: ClassSession
     date: session.date,
     start_time: session.start_time,
     end_time: session.end_time,
-    location: session.location || '5450 W 41st St, Minneapolis, MN 55416',
+    location: session.location || '10800 Lyndale Ave S Suite 310, Bloomington, MN 55420',
     max_capacity: session.max_capacity
   });
 

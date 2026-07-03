@@ -88,8 +88,8 @@ export default function ContactPage() {
                       <p className="font-medium">Service Area</p>
                       <p className="text-gray-600">
                         Minneapolis Metropolitan Area<br />
-                        5450 W 41st St<br />
-                        Minneapolis, MN 55416
+                        10800 Lyndale Ave S Suite 310<br />
+                        Bloomington, MN 55420
                       </p>
                     </div>
                   </div>

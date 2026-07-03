@@ -43,7 +43,7 @@ export default function Footer() {
               </li>
               <li className="flex items-start">
                 <MapPin className="w-4 h-4 mr-2 mt-1" />
-                <span>5450 W 41st St<br />Minneapolis, MN 55416</span>
+                <span>10800 Lyndale Ave S Suite 310<br />Bloomington, MN 55420</span>
               </li>
             </ul>
           </div>

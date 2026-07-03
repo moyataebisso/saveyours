@@ -288,7 +288,7 @@ export default function ClassesPage() {
                     </div>
                     <div className="flex items-center">
                       <MapPin className="w-4 h-4 mr-2" />
-                      Minneapolis, MN
+                      Bloomington, MN
                     </div>
                     <div className="flex items-center">
                       <Users className="w-4 h-4 mr-2" />

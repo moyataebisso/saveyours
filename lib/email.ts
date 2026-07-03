@@ -102,7 +102,7 @@ export async function sendEnrollmentConfirmation(
           
           <div class="footer">
             <p>Questions? Contact us at <a href="mailto:info@saveyours.net">info@saveyours.net</a></p>
-            <p>SaveYours LLC | Minneapolis, MN</p>
+            <p>SaveYours LLC | Bloomington, MN</p>
           </div>
         </div>
       </div>
@@ -198,7 +198,7 @@ export async function sendRefundNotification(
           <p>We apologize for the inconvenience. Please visit <a href="https://saveyours.net/classes" style="color:#DC2626;">our website</a> to view other available class dates.</p>
           <p>If you have any questions, please contact us at <a href="mailto:info@saveyours.net" style="color:#DC2626;">info@saveyours.net</a>.</p>
           <div class="footer">
-            <p>SaveYours LLC | Minneapolis, MN</p>
+            <p>SaveYours LLC | Bloomington, MN</p>
           </div>
         </div>
       </div>
@@ -310,7 +310,7 @@ export async function sendVoucherEmail(
           <p>Should you have any questions, please email us at <a href="mailto:info@saveyours.net" style="color: #DC2626;">info@saveyours.net</a>. Thank you.</p>
 
           <div class="footer">
-            <p>SaveYours LLC | Minneapolis, MN</p>
+            <p>SaveYours LLC | Bloomington, MN</p>
           </div>
         </div>
       </div>

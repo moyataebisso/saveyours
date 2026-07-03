@@ -73,7 +73,7 @@ export async function sendEnrollmentConfirmation(
             </tr>
             <tr>
               <td>Location:</td>
-              <td>${enrollmentDetails.location || '5450 W 41st St, Minneapolis, MN 55416'}</td>
+              <td>${enrollmentDetails.location || '10800 Lyndale Ave S Suite 310, Bloomington, MN 55420'}</td>
             </tr>
           </table>
           
@@ -280,7 +280,7 @@ export async function sendVoucherEmail(
           <div class="details-box">
             <p><strong>Date(s):</strong> ${formattedDate}</p>
             <p><strong>Time(s):</strong> ${voucherDetails.time}</p>
-            <p><strong>Location:</strong> 5450 W 41st St. Minneapolis, MN 55416</p>
+            <p><strong>Location:</strong> 10800 Lyndale Ave S Suite 310, Bloomington, MN 55420</p>
           </div>
 
           <p>There are two parking locations for this building, a parking lot directly behind the building and another parking lot across the adjacent street.</p>

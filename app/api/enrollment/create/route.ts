@@ -3,6 +3,15 @@ import { supabaseHelpers } from '@/lib/supabase'
 import { stripe } from '@/lib/stripe-server'
 import { sendEnrollmentConfirmation, sendVoucherEmail } from '@/lib/email'
 
+function formatTime(time: string): string {
+  if (!time) return '';
+  const [hours, minutes] = time.split(':');
+  const hour = parseInt(hours, 10);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const hour12 = hour % 12 || 12;
+  return `${hour12}:${minutes} ${ampm}`;
+}
+
 // Called from the checkout success flow (app/cart/page.tsx) immediately after
 // stripe.confirmPayment() resolves. This is now the PRIMARY path for creating
 // enrollments and sending confirmation/voucher emails — the Stripe webhook
@@ -102,7 +111,7 @@ export async function POST(req: NextRequest) {
       enrolledClasses.push({
         className: session.class.name,
         date: session.date,
-        time: session.start_time,
+        time: `${formatTime(session.start_time)} - ${formatTime(session.end_time)}`,
       })
 
       // Assign and send the voucher email for this session. Voucher failures

@@ -4,6 +4,15 @@ import { supabaseHelpers } from '@/lib/supabase'
 import { sendEnrollmentConfirmation, sendVoucherEmail, sendAdminAlert, sendRefundNotification } from '@/lib/email'
 import Stripe from 'stripe'
 
+function formatTime(time: string): string {
+  if (!time) return '';
+  const [hours, minutes] = time.split(':');
+  const hour = parseInt(hours, 10);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const hour12 = hour % 12 || 12;
+  return `${hour12}:${minutes} ${ampm}`;
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.text()
   const sig = req.headers.get('stripe-signature')!
@@ -147,7 +156,7 @@ export async function POST(req: NextRequest) {
         createdByWebhook.push({
           className: session.class.name,
           date: session.date,
-          time: session.start_time,
+          time: `${formatTime(session.start_time)} - ${formatTime(session.end_time)}`,
         });
 
         // Fallback voucher assignment + email.

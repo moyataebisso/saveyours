@@ -176,7 +176,7 @@ export async function POST(req: NextRequest) {
                 name,
                 className: session.class.name,
                 date: session.date,
-                time: session.start_time,
+                time: `${formatTime(session.start_time)} - ${formatTime(session.end_time)}`,
                 voucherUrl: voucher.voucher_url,
               });
               console.log('🎟️ [WEBHOOK] Voucher email result:', emailResult);

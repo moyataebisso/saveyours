@@ -1,5 +1,14 @@
 import nodemailer from 'nodemailer'
 
+function formatTime(time: string): string {
+  if (!time) return '';
+  const [hours, minutes] = time.split(':');
+  const hour = parseInt(hours, 10);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const hour12 = hour % 12 || 12;
+  return `${hour12}:${minutes} ${ampm}`;
+}
+
 // Google Workspace SMTP configuration - lazy initialization
 let transporter: nodemailer.Transporter | null = null
 
@@ -279,7 +288,7 @@ export async function sendVoucherEmail(
 
           <div class="details-box">
             <p><strong>Date(s):</strong> ${formattedDate}</p>
-            <p><strong>Time(s):</strong> ${voucherDetails.time}</p>
+            <p><strong>Time(s):</strong> ${formatTime(voucherDetails.time)}</p>
             <p><strong>Location:</strong> 10800 Lyndale Ave S Suite 310, Bloomington, MN 55420</p>
           </div>
 

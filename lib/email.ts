@@ -288,7 +288,7 @@ export async function sendVoucherEmail(
 
           <div class="details-box">
             <p><strong>Date(s):</strong> ${formattedDate}</p>
-            <p><strong>Time(s):</strong> ${formatTime(voucherDetails.time)}</p>
+            <p><strong>Time(s):</strong> ${voucherDetails.time}</p>
             <p><strong>Location:</strong> 10800 Lyndale Ave S Suite 310, Bloomington, MN 55420</p>
           </div>
 

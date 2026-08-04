@@ -7,6 +7,18 @@ import { supabaseHelpers } from '@/lib/supabase';
 import { toast } from '@/components/ui/Toaster';
 import type { Enrollment, ClassSession, Inquiry, Class } from '@/types';
 
+// Mirrors the formatTime helper in app/api/enrollment/create/route.ts.
+// Input is the raw class_sessions.start_time value ("HH:MM" or "HH:MM:SS");
+// callers must guard against null/empty before invoking (render em dash instead).
+function formatTime(time: string): string {
+  if (!time) return '';
+  const [hours, minutes] = time.split(':');
+  const hour = parseInt(hours, 10);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const hour12 = hour % 12 || 12;
+  return `${hour12}:${minutes} ${ampm}`;
+}
+
 export default function AdminDashboard() {
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -571,6 +583,7 @@ export default function AdminDashboard() {
                         <th className="px-4 py-2 text-left">Email</th>
                         <th className="px-4 py-2 text-left">Class</th>
                         <th className="px-4 py-2 text-left">Date</th>
+                        <th className="px-4 py-2 text-left">Time</th>
                         <th className="px-4 py-2 text-left">Status</th>
                         <th className="px-4 py-2 text-left">Actions</th>
                       </tr>
@@ -591,6 +604,9 @@ export default function AdminDashboard() {
                           </td>
                           <td className="px-4 py-2">
                             {enrollment.session?.date ? new Date(enrollment.session.date + 'T00:00:00').toLocaleDateString() : <span className="text-gray-400 italic">No date</span>}
+                          </td>
+                          <td className="px-4 py-2">
+                            {enrollment.session?.start_time ? formatTime(enrollment.session.start_time) : <span className="text-gray-400 italic">—</span>}
                           </td>
                           <td className="px-4 py-2">
                             <span className={`px-2 py-1 rounded text-xs ${
@@ -648,6 +664,7 @@ export default function AdminDashboard() {
                             <th className="px-4 py-2 text-left">Email</th>
                             <th className="px-4 py-2 text-left">Class</th>
                             <th className="px-4 py-2 text-left">Date</th>
+                            <th className="px-4 py-2 text-left">Time</th>
                             <th className="px-4 py-2 text-left">Actions</th>
                           </tr>
                         </thead>
@@ -667,6 +684,9 @@ export default function AdminDashboard() {
                               </td>
                               <td className="px-4 py-2">
                                 {enrollment.session?.date ? new Date(enrollment.session.date + 'T00:00:00').toLocaleDateString() : <span className="text-gray-400 italic">No date</span>}
+                              </td>
+                              <td className="px-4 py-2">
+                                {enrollment.session?.start_time ? formatTime(enrollment.session.start_time) : <span className="text-gray-400 italic">—</span>}
                               </td>
                               <td className="px-4 py-2">
                                 <button

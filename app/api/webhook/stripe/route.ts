@@ -101,14 +101,19 @@ export async function POST(req: NextRequest) {
       }
 
       if (existing) {
-        const { error: statusError } = await supabaseHelpers.updateEnrollmentPaymentStatus(
-          existing.id,
-          'paid'
-        );
-        if (statusError) {
-          console.error('[WEBHOOK] Failed to flip payment_status to paid:', statusError);
+        if (existing.payment_status === 'paid') {
+          // Idempotent no-op: the checkout flow already confirmed this one.
+          console.log('[WEBHOOK] Enrollment already paid, no-op:', existing.id);
         } else {
-          console.log('[WEBHOOK] Enrollment confirmed (payment_status=paid):', existing.id);
+          const { error: statusError } = await supabaseHelpers.updateEnrollmentPaymentStatus(
+            existing.id,
+            'paid'
+          );
+          if (statusError) {
+            console.error('[WEBHOOK] Failed to flip payment_status to paid:', statusError);
+          } else {
+            console.log('[WEBHOOK] Enrollment confirmed (payment_status=paid):', existing.id);
+          }
         }
         // Checkout flow has already sent emails — do NOT resend here.
         continue;

@@ -17,8 +17,9 @@ function formatTime(time: string): string {
 // enrollments and sending confirmation/voucher emails — the Stripe webhook
 // acts as a fallback (see app/api/webhook/stripe/route.ts).
 //
-// Enrollments are created with payment_status='pending'; the webhook flips
-// them to 'paid' once Stripe delivers the payment_intent.succeeded event.
+// payment_status is set from the live Stripe PaymentIntent status rather than
+// waiting on the webhook. If the status lookup fails, the enrollment stays
+// 'pending' and the webhook picks it up.
 export async function POST(req: NextRequest) {
   try {
     const {
@@ -96,15 +97,31 @@ export async function POST(req: NextRequest) {
         continue
       }
 
-      // Payment hasn't been confirmed by the webhook yet — mark pending.
-      // The webhook will flip this to 'paid'.
+      // Read the live PaymentIntent status and set payment_status from it,
+      // rather than depending on the webhook. Isolated in try/catch: a Stripe
+      // lookup failure must not kill enrollment creation or email sending
+      // (April 2026 incident).
       if (result.enrollment_id) {
+        let paymentStatus: 'pending' | 'paid' = 'pending'
+        try {
+          const pi = await stripe.paymentIntents.retrieve(paymentIntent.id)
+          if (pi.status === 'succeeded') {
+            paymentStatus = 'paid'
+          }
+        } catch (statusLookupError) {
+          console.error('[PAYMENT_STATUS] Failed to retrieve PaymentIntent; leaving enrollment as pending:', {
+            paymentIntentId: paymentIntent.id,
+            enrollmentId: result.enrollment_id,
+            error: statusLookupError,
+          })
+        }
+
         const { error: statusError } = await supabaseHelpers.updateEnrollmentPaymentStatus(
           result.enrollment_id,
-          'pending'
+          paymentStatus
         )
         if (statusError) {
-          console.error('[ENROLLMENT] Failed to set payment_status=pending:', statusError)
+          console.error('[PAYMENT_STATUS] Failed to update payment_status:', statusError)
         }
       }
 

@@ -2,7 +2,7 @@
 import { supabase } from '@/lib/supabase';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Calendar, Users, DollarSign, MessageSquare, Plus, Edit, Trash2, CheckCircle, X, Clock, Phone, Mail, Save, Link } from 'lucide-react';
+import { Calendar, Users, MessageSquare, Plus, Edit, Trash2, CheckCircle, X, Clock, Phone, Mail, Save, Link } from 'lucide-react';
 import { supabaseHelpers } from '@/lib/supabase';
 import { toast } from '@/components/ui/Toaster';
 import type { Enrollment, ClassSession, Inquiry, Class } from '@/types';
@@ -330,6 +330,27 @@ export default function AdminDashboard() {
   const totalRevenue = paidEnrollmentsList
     .reduce((sum, e) => sum + Number(e.amount_paid || 0), 0);
 
+  // Local date string, NOT toISOString() — that converts to UTC and shifts the
+  // date after ~7pm Central, causing an off-by-one-day bug (known issue in this codebase).
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+  // Active = upcoming AND not cancelled. Deliberately NOT `status === 'scheduled'`:
+  // a session that fills flips to 'full' and would otherwise drop out of revenue.
+  const activeSessionIds = new Set(
+    sessions
+      .filter(s => String(s.date).slice(0, 10) >= todayStr && s.status !== 'cancelled')
+      .map(s => s.id)
+  );
+
+  const activeClassRevenue = enrollments
+    .filter(e =>
+      e.payment_status === 'paid' &&
+      e.status !== 'cancelled' &&
+      activeSessionIds.has(e.session_id)
+    )
+    .reduce((sum, e) => sum + Number(e.amount_paid || 0), 0);
+
   const upcomingSessions = sessions.filter(s => {
     const sessionDate = new Date(s.date);
     return sessionDate >= today && s.status === 'scheduled';
@@ -396,9 +417,9 @@ export default function AdminDashboard() {
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center justify-between mb-2">
               <span className="text-gray-500">Revenue</span>
-              <DollarSign className="w-5 h-5 text-green-600" />
+              <span className="text-sm text-gray-500">All-time: ${totalRevenue.toLocaleString()}</span>
             </div>
-            <p className="text-2xl font-bold">${totalRevenue.toLocaleString()}</p>
+            <p className="text-2xl font-bold">${activeClassRevenue.toLocaleString()}</p>
           </div>
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center justify-between mb-2">

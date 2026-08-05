@@ -40,6 +40,15 @@ export default function AdminDashboard() {
   } | null>(null);
   const [reconcileLoading, setReconcileLoading] = useState(false);
   const [creatingEnrollment, setCreatingEnrollment] = useState<string | null>(null);
+  const [sendEmailsOnReconcile, setSendEmailsOnReconcile] = useState(true);
+  const [reconcileNotifications, setReconcileNotifications] = useState<Array<{
+    sessionId: string;
+    className?: string;
+    confirmationSent: boolean;
+    voucherAssigned: boolean;
+    voucherEmailSent: boolean;
+    warning?: string;
+  }>>([]);
 
   // Hardcoded password
   const ADMIN_PASSWORD = 'SaveYours2024!';
@@ -373,6 +382,7 @@ export default function AdminDashboard() {
               onClick={async () => {
                 setShowReconcile(true);
                 setReconcileLoading(true);
+                setReconcileNotifications([]);
                 try {
                   const res = await fetch('/api/admin/reconcile');
                   const data = await res.json();
@@ -824,12 +834,48 @@ export default function AdminDashboard() {
           <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[80vh] overflow-y-auto">
             <div className="flex justify-between items-center p-6 border-b sticky top-0 bg-white rounded-t-xl">
               <h2 className="text-xl font-bold">Stripe Reconciliation</h2>
-              <button onClick={() => { setShowReconcile(false); setReconcileData(null); }} className="text-gray-500 hover:text-gray-700">
+              <button onClick={() => { setShowReconcile(false); setReconcileData(null); setReconcileNotifications([]); }} className="text-gray-500 hover:text-gray-700">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="p-6">
+              <label className="flex items-center gap-2 mb-4 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={sendEmailsOnReconcile}
+                  onChange={(e) => setSendEmailsOnReconcile(e.target.checked)}
+                  className="rounded"
+                />
+                Also send confirmation + voucher email
+              </label>
+
+              {reconcileNotifications.length > 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                  <h3 className="font-semibold text-blue-800 mb-3">Last create result</h3>
+                  <div className="space-y-2">
+                    {reconcileNotifications.map((n, idx) => (
+                      <div
+                        key={idx}
+                        className={
+                          n.warning
+                            ? 'bg-red-50 border border-red-300 rounded p-3 text-sm'
+                            : 'bg-white border border-blue-100 rounded p-3 text-sm'
+                        }
+                      >
+                        <p><strong>Session:</strong> {n.className || n.sessionId}</p>
+                        <p>Confirmation email: {n.confirmationSent ? '✓ sent' : '✗ not sent'}</p>
+                        <p>Voucher assigned: {n.voucherAssigned ? '✓ yes' : '— no'}</p>
+                        <p>Voucher email: {n.voucherEmailSent ? '✓ sent' : '— not sent'}</p>
+                        {n.warning && (
+                          <p className="mt-2 text-red-800 font-semibold">⚠️ {n.warning}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {reconcileLoading ? (
                 <div className="text-center py-12">
                   <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600 mx-auto mb-4"></div>
@@ -885,9 +931,20 @@ export default function AdminDashboard() {
                                   const res = await fetch('/api/admin/reconcile', {
                                     method: 'POST',
                                     headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ paymentIntentId: item.paymentId })
+                                    body: JSON.stringify({
+                                      paymentIntentId: item.paymentId,
+                                      sendEmails: sendEmailsOnReconcile,
+                                    })
                                   });
                                   const result = await res.json();
+                                  if (Array.isArray(result.notifications)) {
+                                    setReconcileNotifications(result.notifications);
+                                    result.notifications.forEach((n: { warning?: string }) => {
+                                      if (n.warning) toast.error(n.warning);
+                                    });
+                                  } else {
+                                    setReconcileNotifications([]);
+                                  }
                                   if (result.created?.length > 0) {
                                     toast.success(`Created ${result.created.length} enrollment(s)`);
                                     // Re-run reconciliation

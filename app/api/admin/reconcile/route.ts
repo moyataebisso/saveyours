@@ -1,6 +1,20 @@
 import { NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe-server'
-import { supabase } from '@/lib/supabase'
+import { supabase, supabaseHelpers } from '@/lib/supabase'
+import { sendEnrollmentConfirmation, sendVoucherEmail } from '@/lib/email'
+
+// Mirrors the formatTime helper in app/api/enrollment/create/route.ts.
+// The voucher/confirmation emails render the time string as-is (see
+// lib/email.ts commit 035ffd9), so callers MUST pre-format to avoid the
+// double-format garbage bug.
+function formatTime(time: string): string {
+  if (!time) return '';
+  const [hours, minutes] = time.split(':');
+  const hour = parseInt(hours, 10);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const hour12 = hour % 12 || 12;
+  return `${hour12}:${minutes} ${ampm}`;
+}
 
 export async function GET() {
   try {
@@ -67,9 +81,23 @@ export async function GET() {
   }
 }
 
+type ReconcileNotification = {
+  sessionId: string
+  className?: string
+  confirmationSent: boolean
+  voucherAssigned: boolean
+  voucherEmailSent: boolean
+  warning?: string
+}
+
 export async function POST(req: Request) {
   try {
-    const { paymentIntentId } = await req.json()
+    const body = await req.json()
+    const { paymentIntentId, sendEmails: sendEmailsRaw } = body as {
+      paymentIntentId?: string
+      sendEmails?: boolean
+    }
+    const sendEmails = sendEmailsRaw === true
 
     if (!paymentIntentId) {
       return NextResponse.json({ error: 'Missing paymentIntentId' }, { status: 400 })
@@ -100,6 +128,7 @@ export async function POST(req: Request) {
 
     const created: string[] = []
     const errors: string[] = []
+    const notifications: ReconcileNotification[] = []
 
     for (const sessionId of sessionIds) {
       // Check if enrollment already exists for this session + payment combo
@@ -140,24 +169,101 @@ export async function POST(req: Request) {
 
       if (error) {
         errors.push(`Failed to create enrollment for session ${sessionId}: ${error.message}`)
-      } else {
-        created.push(enrollment.id)
-
-        // Increment session enrollment count
-        if (session) {
-          const newCount = (session.current_enrollment || 0) + 1
-          await supabase
-            .from('class_sessions')
-            .update({
-              current_enrollment: newCount,
-              status: newCount >= session.max_capacity ? 'full' : 'scheduled'
-            })
-            .eq('id', sessionId)
-        }
+        continue
       }
+
+      created.push(enrollment.id)
+
+      // Increment session enrollment count
+      if (session) {
+        const newCount = (session.current_enrollment || 0) + 1
+        await supabase
+          .from('class_sessions')
+          .update({
+            current_enrollment: newCount,
+            status: newCount >= session.max_capacity ? 'full' : 'scheduled'
+          })
+          .eq('id', sessionId)
+      }
+
+      if (!sendEmails) continue
+
+      // Per-enrollment try/catch: an email/voucher failure NEVER aborts the loop,
+      // rolls back the enrollment, or fails the request. The seat is taken; the
+      // admin can send anything that failed manually from the dashboard.
+      const notification: ReconcileNotification = {
+        sessionId,
+        className: session?.class?.name,
+        confirmationSent: false,
+        voucherAssigned: false,
+        voucherEmailSent: false,
+      }
+
+      if (!session) {
+        notification.warning = `Session ${sessionId} not found — could not send emails.`
+        console.warn(`[RECONCILE] ${notification.warning}`)
+        notifications.push(notification)
+        continue
+      }
+
+      try {
+        // Mirror app/api/enrollment/create/route.ts: pre-format the time string.
+        // sendVoucherEmail renders time as-is (035ffd9), so double-formatting
+        // would produce "9:00 AM AM" garbage.
+        const preFormattedTime = `${formatTime(session.start_time)} - ${formatTime(session.end_time)}`
+        const className = session.class?.name || 'your class'
+        const sessionDate = session.date
+
+        // 1. Voucher lookup + assign + voucher email
+        const { data: voucher, error: voucherError } = await supabaseHelpers.getAvailableVoucher(sessionId)
+        if (voucherError) {
+          console.error('[RECONCILE] Error fetching available voucher:', voucherError)
+        }
+
+        if (voucher) {
+          const { error: assignError } = await supabaseHelpers.assignVoucher(voucher.id, email)
+          if (!assignError) {
+            notification.voucherAssigned = true
+            const voucherEmailResult = await sendVoucherEmail(email, {
+              name,
+              className,
+              date: sessionDate,
+              time: preFormattedTime,
+              voucherUrl: voucher.voucher_url,
+            })
+            if (voucherEmailResult?.success) {
+              notification.voucherEmailSent = true
+            } else {
+              console.error('[RECONCILE] Voucher email did not succeed:', voucherEmailResult)
+            }
+          } else {
+            console.error('[RECONCILE] Failed to assign voucher:', assignError)
+          }
+        } else {
+          notification.warning = `No voucher available for session ${sessionId} (${className}). Upload vouchers for this session and assign one manually.`
+          console.warn(`[RECONCILE] No available voucher for session ${sessionId} — manual assignment required for ${email}`)
+        }
+
+        // 2. Confirmation email — always, regardless of voucher outcome
+        const confResult = await sendEnrollmentConfirmation(email, {
+          name,
+          className,
+          date: sessionDate,
+          time: preFormattedTime,
+        })
+        if (confResult?.success) {
+          notification.confirmationSent = true
+        } else {
+          console.error('[RECONCILE] Confirmation email did not succeed:', confResult)
+        }
+      } catch (emailError) {
+        console.error('[RECONCILE] Email/voucher block failed (non-fatal):', emailError)
+      }
+
+      notifications.push(notification)
     }
 
-    return NextResponse.json({ created, errors })
+    return NextResponse.json({ created, errors, notifications })
   } catch (error) {
     console.error('Manual enrollment creation error:', error)
     return NextResponse.json({ error: 'Failed to create enrollment' }, { status: 500 })

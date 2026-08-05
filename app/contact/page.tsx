@@ -31,6 +31,11 @@ export default function ContactPage() {
       toast.error('Failed to send message. Please try again.');
     } else {
       toast.success('Message sent successfully! We\'ll get back to you soon.');
+      fetch('/api/inquiry/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...formData }),
+      }).catch(err => console.error('[INQUIRY] notify failed:', err));
       setFormData({
         name: '',
         email: '',

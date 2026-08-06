@@ -26,6 +26,15 @@ export default function VouchersPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [pendingAssignment, setPendingAssignment] = useState<{
+    voucherId: string;
+    updates: {
+      voucher_url?: string;
+      status?: 'available' | 'assigned';
+      assigned_to_email?: string | null;
+      assigned_at?: string | null;
+    };
+  } | null>(null);
 
   const ADMIN_PASSWORD = 'SaveYours2024!';
   const SESSION_TIMEOUT = 2 * 60 * 60 * 1000;
@@ -196,8 +205,9 @@ export default function VouchersPage() {
     setShowBulkDeleteConfirm(false);
   };
 
-  // Update voucher
-  const handleUpdateVoucher = async (voucherId: string, updates: {
+  // Actual DB write. Callers must have already decided the update is safe to run
+  // (either no enrollment check was needed, or the admin confirmed the warning).
+  const performVoucherUpdate = async (voucherId: string, updates: {
     voucher_url?: string;
     status?: 'available' | 'assigned';
     assigned_to_email?: string | null;
@@ -217,6 +227,56 @@ export default function VouchersPage() {
       console.error('Error:', error);
       toast.error('Failed to update voucher');
     }
+  };
+
+  // Update voucher — checks enrollments before assigning to a NEW email so the
+  // admin knows if she's giving a voucher to someone whose seat isn't reserved.
+  const handleUpdateVoucher = async (voucherId: string, updates: {
+    voucher_url?: string;
+    status?: 'available' | 'assigned';
+    assigned_to_email?: string | null;
+    assigned_at?: string | null;
+  }) => {
+    const targetEmail = typeof updates.assigned_to_email === 'string'
+      ? updates.assigned_to_email.trim().toLowerCase()
+      : '';
+    const previousEmail = (editingVoucher?.assigned_to_email || '').trim().toLowerCase();
+
+    // Only trigger the check when the update actually produces a new
+    // (voucher → email) binding. URL-only edits, unassigns, and re-saves with
+    // the same email do NOT warrant a warning.
+    const isNewAssignment =
+      updates.status === 'assigned' &&
+      targetEmail !== '' &&
+      editingVoucher !== null &&
+      (editingVoucher.status !== 'assigned' || previousEmail !== targetEmail);
+
+    if (isNewAssignment && editingVoucher) {
+      // Lowercase both sides to defeat the known email case-sensitivity bug.
+      const { data: enrollments, error: enrollmentsError } = await supabase
+        .from('enrollments')
+        .select('guest_email')
+        .eq('session_id', editingVoucher.session_id)
+        .neq('status', 'cancelled');
+
+      if (enrollmentsError) {
+        console.error('[VOUCHERS] Failed to look up enrollments for assignment check:', enrollmentsError);
+        // Lookup failure = unknown. Warn rather than silently proceed.
+        setPendingAssignment({ voucherId, updates });
+        return;
+      }
+
+      const hasMatchingEnrollment = (enrollments || []).some(e =>
+        (e.guest_email || '').trim().toLowerCase() === targetEmail
+      );
+
+      if (!hasMatchingEnrollment) {
+        setPendingAssignment({ voucherId, updates });
+        return;
+      }
+    }
+
+    await performVoucherUpdate(voucherId, updates);
   };
 
   // Copy URL to clipboard
@@ -582,6 +642,39 @@ export default function VouchersPage() {
           onCancel={() => setShowBulkDeleteConfirm(false)}
           isLoading={bulkDeleting}
         />
+      )}
+
+      {/* Assignment Warning — no matching enrollment. Renders above the edit
+          modal (z-60 > z-50) so cancelling returns the admin to her edits. */}
+      {pendingAssignment && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 className="text-xl font-semibold mb-2 text-yellow-800">No Enrollment Found</h2>
+            <p className="text-gray-700 mb-6">
+              This person has no enrollment for this class, so their seat is not reserved
+              and someone else can book it. Use Reconcile in the admin dashboard instead —
+              it creates the enrollment, assigns a voucher, and sends both emails.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  const p = pendingAssignment;
+                  setPendingAssignment(null);
+                  await performVoucherUpdate(p.voucherId, p.updates);
+                }}
+                className="flex-1 bg-yellow-600 text-white py-2 rounded-lg hover:bg-yellow-700"
+              >
+                Assign Anyway
+              </button>
+              <button
+                onClick={() => setPendingAssignment(null)}
+                className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

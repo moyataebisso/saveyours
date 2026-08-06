@@ -5,6 +5,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import ChatWidget from '@/components/ChatWidget';
 import { Toaster } from '@/components/ui/Toaster';
+import { Analytics } from '@vercel/analytics/next';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -27,6 +28,7 @@ export default function RootLayout({
         <Footer />
         <ChatWidget />
         <Toaster />
+        <Analytics />
       </body>
     </html>
   );

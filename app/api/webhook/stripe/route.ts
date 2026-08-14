@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe-server'
-import { supabaseHelpers } from '@/lib/supabase'
-import { sendEnrollmentConfirmation, sendVoucherEmail, sendAdminAlert, sendRefundNotification } from '@/lib/email'
+import { supabaseAdmin } from '@/lib/supabase-admin'
+import { sendEnrollmentConfirmation, sendVoucherEmail, sendAdminAlert } from '@/lib/email'
 import Stripe from 'stripe'
 
 function formatTime(time: string): string {
@@ -84,17 +84,23 @@ export async function POST(req: NextRequest) {
     const createdByWebhook: { className: string; date: string; time: string }[] = []
 
     for (const sessionId of sessionIds) {
-      const { data: session } = await supabaseHelpers.getSessionById(sessionId);
+      const { data: session } = await supabaseAdmin
+        .from('class_sessions')
+        .select('*, class:classes(*)')
+        .eq('id', sessionId)
+        .single();
       if (!session) {
         console.warn('[WEBHOOK] Session not found:', sessionId);
         continue;
       }
 
       // Happy path: checkout flow already created this enrollment.
-      const { data: existing, error: lookupError } = await supabaseHelpers.getEnrollmentByPaymentIntent(
-        paymentIntent.id,
-        sessionId
-      );
+      const { data: existing, error: lookupError } = await supabaseAdmin
+        .from('enrollments')
+        .select('*')
+        .eq('stripe_payment_intent_id', paymentIntent.id)
+        .eq('session_id', sessionId)
+        .maybeSingle();
 
       if (lookupError) {
         console.error('[WEBHOOK] Error looking up existing enrollment:', lookupError);
@@ -105,10 +111,10 @@ export async function POST(req: NextRequest) {
           // Idempotent no-op: the checkout flow already confirmed this one.
           console.log('[WEBHOOK] Enrollment already paid, no-op:', existing.id);
         } else {
-          const { error: statusError } = await supabaseHelpers.updateEnrollmentPaymentStatus(
-            existing.id,
-            'paid'
-          );
+          const { error: statusError } = await supabaseAdmin
+            .from('enrollments')
+            .update({ payment_status: 'paid' })
+            .eq('id', existing.id);
           if (statusError) {
             console.error('[WEBHOOK] Failed to flip payment_status to paid:', statusError);
           } else {
@@ -126,14 +132,14 @@ export async function POST(req: NextRequest) {
         email,
       });
 
-      const { data: result, error: rpcError } = await supabaseHelpers.enrollStudentIfCapacity({
-        session_id: sessionId,
-        guest_name: name,
-        guest_email: email,
-        phone,
-        stripe_payment_intent_id: paymentIntent.id,
-        amount_paid: session.class.price,
-      });
+      const { data: result, error: rpcError } = await supabaseAdmin.rpc('enroll_student_if_capacity', {
+        p_session_id: sessionId,
+        p_guest_name: name,
+        p_guest_email: email,
+        p_phone: phone,
+        p_stripe_payment_intent_id: paymentIntent.id,
+        p_amount_paid: session.class.price,
+      }) as { data: { success: boolean; error?: string; enrollment_id?: string } | null; error: unknown };
 
       if (rpcError) {
         console.error('❌ [WEBHOOK] RPC error for session:', { rpcError, sessionId, email });
@@ -149,10 +155,10 @@ export async function POST(req: NextRequest) {
 
         // Webhook is the authoritative confirmation — mark paid immediately.
         if (result.enrollment_id) {
-          const { error: statusError } = await supabaseHelpers.updateEnrollmentPaymentStatus(
-            result.enrollment_id,
-            'paid'
-          );
+          const { error: statusError } = await supabaseAdmin
+            .from('enrollments')
+            .update({ payment_status: 'paid' })
+            .eq('id', result.enrollment_id);
           if (statusError) {
             console.error('[WEBHOOK] Failed to set payment_status=paid on fallback enrollment:', statusError);
           }
@@ -167,14 +173,27 @@ export async function POST(req: NextRequest) {
         // Fallback voucher assignment + email.
         console.log('🎟️ [WEBHOOK] Starting voucher assignment (fallback) for session:', sessionId);
         try {
-          const { data: voucher, error: voucherError } = await supabaseHelpers.getAvailableVoucher(sessionId);
+          const { data: voucher, error: voucherError } = await supabaseAdmin
+            .from('voucher_links')
+            .select('*')
+            .eq('session_id', sessionId)
+            .eq('status', 'available')
+            .limit(1)
+            .maybeSingle();
 
           if (voucherError) {
             console.error('🎟️ [WEBHOOK] Error getting available voucher:', voucherError);
           }
 
           if (voucher) {
-            const { error: assignError } = await supabaseHelpers.assignVoucher(voucher.id, email);
+            const { error: assignError } = await supabaseAdmin
+              .from('voucher_links')
+              .update({
+                status: 'assigned',
+                assigned_to_email: email,
+                assigned_at: new Date().toISOString(),
+              })
+              .eq('id', voucher.id);
 
             if (!assignError) {
               const emailResult = await sendVoucherEmail(email, {

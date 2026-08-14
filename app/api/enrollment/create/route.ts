@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseHelpers } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 import { stripe } from '@/lib/stripe-server'
 import { sendEnrollmentConfirmation, sendVoucherEmail } from '@/lib/email'
 
@@ -53,10 +53,12 @@ export async function POST(req: NextRequest) {
     for (const sid of ids) {
       // If the webhook beat us to this enrollment (rare, but possible on slow
       // clients / fast webhook delivery), skip to avoid duplicate emails.
-      const { data: existing } = await supabaseHelpers.getEnrollmentByPaymentIntent(
-        paymentIntent.id,
-        sid
-      )
+      const { data: existing } = await supabaseAdmin
+        .from('enrollments')
+        .select('*')
+        .eq('stripe_payment_intent_id', paymentIntent.id)
+        .eq('session_id', sid)
+        .maybeSingle()
       if (existing) {
         console.log(
           `[ENROLLMENT] Enrollment already exists for ${paymentIntent.id}/${sid} — webhook handled it`
@@ -64,7 +66,11 @@ export async function POST(req: NextRequest) {
         continue
       }
 
-      const { data: session } = await supabaseHelpers.getSessionById(sid)
+      const { data: session } = await supabaseAdmin
+        .from('class_sessions')
+        .select('*, class:classes(*)')
+        .eq('id', sid)
+        .single()
       if (!session) {
         console.error(`[ENROLLMENT] Session not found: ${sid}`)
         continue
@@ -72,14 +78,14 @@ export async function POST(req: NextRequest) {
 
       // Use the atomic RPC for the capacity check + insert so we can't overbook
       // even under concurrent checkouts.
-      const { data: result, error: rpcError } = await supabaseHelpers.enrollStudentIfCapacity({
-        session_id: sid,
-        guest_name: name,
-        guest_email: email,
-        phone: phone || '',
-        stripe_payment_intent_id: paymentIntent.id,
-        amount_paid: session.class.price,
-      })
+      const { data: result, error: rpcError } = await supabaseAdmin.rpc('enroll_student_if_capacity', {
+        p_session_id: sid,
+        p_guest_name: name,
+        p_guest_email: email,
+        p_phone: phone || '',
+        p_stripe_payment_intent_id: paymentIntent.id,
+        p_amount_paid: session.class.price,
+      }) as { data: { success: boolean; error?: string; enrollment_id?: string } | null; error: unknown }
 
       if (rpcError) {
         console.error('[ENROLLMENT] RPC error for session:', { rpcError, sid, email })
@@ -116,10 +122,10 @@ export async function POST(req: NextRequest) {
           })
         }
 
-        const { error: statusError } = await supabaseHelpers.updateEnrollmentPaymentStatus(
-          result.enrollment_id,
-          paymentStatus
-        )
+        const { error: statusError } = await supabaseAdmin
+          .from('enrollments')
+          .update({ payment_status: paymentStatus })
+          .eq('id', result.enrollment_id)
         if (statusError) {
           console.error('[PAYMENT_STATUS] Failed to update payment_status:', statusError)
         }
@@ -134,13 +140,26 @@ export async function POST(req: NextRequest) {
       // Assign and send the voucher email for this session. Voucher failures
       // are non-fatal — admin can assign manually from the dashboard.
       try {
-        const { data: voucher, error: voucherError } = await supabaseHelpers.getAvailableVoucher(sid)
+        const { data: voucher, error: voucherError } = await supabaseAdmin
+          .from('voucher_links')
+          .select('*')
+          .eq('session_id', sid)
+          .eq('status', 'available')
+          .limit(1)
+          .maybeSingle()
         if (voucherError) {
           console.error('[ENROLLMENT] Error fetching available voucher:', voucherError)
         }
 
         if (voucher) {
-          const { error: assignError } = await supabaseHelpers.assignVoucher(voucher.id, email)
+          const { error: assignError } = await supabaseAdmin
+            .from('voucher_links')
+            .update({
+              status: 'assigned',
+              assigned_to_email: email,
+              assigned_at: new Date().toISOString(),
+            })
+            .eq('id', voucher.id)
           if (!assignError) {
             await sendVoucherEmail(email, {
               name,

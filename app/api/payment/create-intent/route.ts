@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe-server'
-import { supabaseHelpers } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,7 +18,11 @@ export async function POST(req: NextRequest) {
     const sessionDetails: any[] = [];
 
     for (const id of ids) {
-      const { data: session, error } = await supabaseHelpers.getSessionById(id)
+      const { data: session, error } = await supabaseAdmin
+        .from('class_sessions')
+        .select('*, class:classes(*)')
+        .eq('id', id)
+        .single()
       if (!error && session) {
         sessionDetails.push(session);
         if (!amount) {

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe-server'
-import { supabase, supabaseHelpers } from '@/lib/supabase'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEnrollmentConfirmation, sendVoucherEmail } from '@/lib/email'
 
 // Mirrors the formatTime helper in app/api/enrollment/create/route.ts.
@@ -35,7 +35,7 @@ export async function GET() {
     }
 
     for (const payment of succeeded) {
-      const { data: existing } = await supabase
+      const { data: existing } = await supabaseAdmin
         .from('enrollments')
         .select('id, guest_name, guest_email')
         .eq('stripe_payment_intent_id', payment.id)
@@ -132,7 +132,7 @@ export async function POST(req: Request) {
 
     for (const sessionId of sessionIds) {
       // Check if enrollment already exists for this session + payment combo
-      const { data: existing } = await supabase
+      const { data: existing } = await supabaseAdmin
         .from('enrollments')
         .select('id')
         .eq('stripe_payment_intent_id', paymentIntentId)
@@ -144,7 +144,7 @@ export async function POST(req: Request) {
         continue
       }
 
-      const { data: session } = await supabase
+      const { data: session } = await supabaseAdmin
         .from('class_sessions')
         .select('*, class:classes(*)')
         .eq('id', sessionId)
@@ -152,7 +152,7 @@ export async function POST(req: Request) {
 
       const amountPaid = session?.class?.price || paymentIntent.amount / 100
 
-      const { data: enrollment, error } = await supabase
+      const { data: enrollment, error } = await supabaseAdmin
         .from('enrollments')
         .insert([{
           session_id: sessionId,
@@ -177,7 +177,7 @@ export async function POST(req: Request) {
       // Increment session enrollment count
       if (session) {
         const newCount = (session.current_enrollment || 0) + 1
-        await supabase
+        await supabaseAdmin
           .from('class_sessions')
           .update({
             current_enrollment: newCount,
@@ -215,13 +215,26 @@ export async function POST(req: Request) {
         const sessionDate = session.date
 
         // 1. Voucher lookup + assign + voucher email
-        const { data: voucher, error: voucherError } = await supabaseHelpers.getAvailableVoucher(sessionId)
+        const { data: voucher, error: voucherError } = await supabaseAdmin
+          .from('voucher_links')
+          .select('*')
+          .eq('session_id', sessionId)
+          .eq('status', 'available')
+          .limit(1)
+          .maybeSingle()
         if (voucherError) {
           console.error('[RECONCILE] Error fetching available voucher:', voucherError)
         }
 
         if (voucher) {
-          const { error: assignError } = await supabaseHelpers.assignVoucher(voucher.id, email)
+          const { error: assignError } = await supabaseAdmin
+            .from('voucher_links')
+            .update({
+              status: 'assigned',
+              assigned_to_email: email,
+              assigned_at: new Date().toISOString(),
+            })
+            .eq('id', voucher.id)
           if (!assignError) {
             notification.voucherAssigned = true
             const voucherEmailResult = await sendVoucherEmail(email, {

@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { Mail, MapPin, Send, Users, Building, AlertCircle } from 'lucide-react';
 import { toast } from '@/components/ui/Toaster';
-import { supabaseHelpers } from '@/lib/supabase';
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({
@@ -22,31 +21,34 @@ export default function ContactPage() {
     e.preventDefault();
     setLoading(true);
 
-    const { error } = await supabaseHelpers.submitInquiry({
-      ...formData,
-      participants: formData.participants ? parseInt(formData.participants) : undefined,
-    });
-
-    if (error) {
-      toast.error('Failed to send message. Please try again.');
-    } else {
-      toast.success('Message sent successfully! We\'ll get back to you soon.');
-      fetch('/api/inquiry/notify', {
+    try {
+      const res = await fetch('/api/inquiry/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData }),
-      }).catch(err => console.error('[INQUIRY] notify failed:', err));
-      setFormData({
-        name: '',
-        email: '',
-        phone: '',
-        service_type: '',
-        location: '',
-        participants: '',
-        preferred_dates: '',
-        message: ''
+        body: JSON.stringify(formData),
       });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data?.error || 'Failed to send message. Please try again.');
+      } else {
+        toast.success('Message sent successfully! We\'ll get back to you soon.');
+        setFormData({
+          name: '',
+          email: '',
+          phone: '',
+          service_type: '',
+          location: '',
+          participants: '',
+          preferred_dates: '',
+          message: ''
+        });
+      }
+    } catch (err) {
+      console.error('[INQUIRY] submit failed:', err);
+      toast.error('Failed to send message. Please try again.');
     }
+
     setLoading(false);
   };
 

@@ -42,6 +42,8 @@ export default function ChangeRequestsPage() {
   const [requestType, setRequestType] = useState('general')
   const [priority, setPriority] = useState('normal')
   const [description, setDescription] = useState('')
+  const [website, setWebsite] = useState('')
+  const [formMountedAt] = useState<number>(() => Date.now())
 
   useEffect(() => {
     checkAuthentication()
@@ -130,7 +132,13 @@ export default function ChangeRequestsPage() {
       const res = await fetch('/api/change-requests/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description, requestType, priority }),
+        body: JSON.stringify({
+          description,
+          requestType,
+          priority,
+          website,
+          mountedAt: formMountedAt,
+        }),
       })
       const data = await res.json()
 
@@ -311,6 +319,16 @@ export default function ChangeRequestsPage() {
           <div className="bg-white rounded-lg shadow p-6 mb-6">
             <h2 className="text-lg font-semibold mb-4">Submit a Change Request</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
+              <input
+                type="text"
+                name="website"
+                value={website}
+                onChange={(e) => setWebsite(e.target.value)}
+                tabIndex={-1}
+                autoComplete="off"
+                aria-hidden="true"
+                style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px' }}
+              />
               <div>
                 <label className="block text-sm font-medium mb-1">Request Type</label>
                 <select

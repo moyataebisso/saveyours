@@ -9,6 +9,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [website, setWebsite] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,7 +20,7 @@ export default function LoginPage() {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password, website })
       });
 
       if (response.ok) {
@@ -46,7 +47,7 @@ export default function LoginPage() {
         const adminResponse = await fetch('/api/admin/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
+          body: JSON.stringify({ email, password, website })
         });
 
         if (adminResponse.ok) {
@@ -76,6 +77,16 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold text-center mb-6">Login</h1>
           
           <form onSubmit={handleSubmit} className="space-y-4">
+            <input
+              type="text"
+              name="website"
+              value={website}
+              onChange={(e) => setWebsite(e.target.value)}
+              tabIndex={-1}
+              autoComplete="off"
+              aria-hidden="true"
+              style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px' }}
+            />
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Email

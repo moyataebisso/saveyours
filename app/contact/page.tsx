@@ -16,6 +16,9 @@ export default function ContactPage() {
     message: ''
   });
   const [loading, setLoading] = useState(false);
+  // Spam-defense inputs — never seen or interacted with by real users.
+  const [website, setWebsite] = useState('');
+  const [mountedAt] = useState(() => Date.now());
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +28,7 @@ export default function ContactPage() {
       const res = await fetch('/api/inquiry/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, website, mountedAt }),
       });
 
       if (!res.ok) {
@@ -140,6 +143,20 @@ export default function ContactPage() {
                 <h2 className="text-2xl font-bold mb-6">Request a Quote</h2>
                 
                 <form onSubmit={handleSubmit} className="space-y-6">
+                  {/* Honeypot — real users never see this. Any bot that
+                      auto-fills every input trips it. Off-screen (not
+                      display:none, not type=hidden — both are commonly
+                      skipped by well-behaved bots). */}
+                  <input
+                    type="text"
+                    name="website"
+                    value={website}
+                    onChange={(e) => setWebsite(e.target.value)}
+                    tabIndex={-1}
+                    autoComplete="off"
+                    aria-hidden="true"
+                    style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px' }}
+                  />
                   <div className="grid md:grid-cols-2 gap-6">
                     <div>
                       <label className="label">Name *</label>

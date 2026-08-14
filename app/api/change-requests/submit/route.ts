@@ -1,11 +1,24 @@
 import { arsiSupabase } from '@/lib/arsi-supabase'
 import { escapeHtml } from '@/lib/email'
+import { checkFormSubmission } from '@/lib/form-guard'
 import { Resend } from 'resend'
 
 export async function POST(request: Request) {
-  const { description, requestType, priority } = await request.json()
+  const body = await request.json().catch(() => ({}))
 
-  if (!description || description.trim().length < 10) {
+  const guard = checkFormSubmission(request, body, {
+    formName: 'change-request',
+    honeypot: true,
+    timing: { minSeconds: 3 },
+    rateLimit: { maxPerHour: 5, identifierField: 'clientEmail' },
+  })
+  if (guard.decision === 'silent-accept') {
+    return Response.json({ success: true, id: null })
+  }
+
+  const { description, requestType, priority } = body ?? {}
+
+  if (!description || String(description).trim().length < 10) {
     return Response.json(
       { error: 'Please describe your request (at least 10 characters)' },
       { status: 400 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendAdminAlert, escapeHtml as escapeHtmlBase } from '@/lib/email'
+import { checkFormSubmission } from '@/lib/form-guard'
 
 // Local wrapper: renders empty/nullish values as an em dash so the admin
 // email table looks tidy instead of showing blank cells for optional fields.
@@ -92,6 +93,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
 
+  // Spam gate — must run before validation, DB insert, or email.
+  const guard = checkFormSubmission(req, body, {
+    formName: 'inquiry',
+    honeypot: true,
+    timing: { minSeconds: 3 },
+    gibberishFields: ['name', 'location'],
+    selectDefaults: [{ field: 'service_type', defaultValue: 'BLS' }],
+    emailField: 'email',
+    rateLimit: { maxPerHour: 3, identifierField: 'email' },
+  })
+  if (guard.decision === 'silent-accept') {
+    // Success-shaped body — never reveal which check tripped.
+    return NextResponse.json({ ok: true })
+  }
+  const suspicious = guard.suspicious
+
   const result = validate(body)
   if (result.ok === false) {
     return NextResponse.json({ error: result.error }, { status: 400 })
@@ -110,7 +127,7 @@ export async function POST(req: NextRequest) {
   // Email is best-effort. Row is saved; if the notification email fails the
   // admin can still see it in the dashboard, so we don't fail the request.
   try {
-    const subject = `New inquiry from ${inquiry.name}`
+    const subject = `${suspicious ? '[POSSIBLE SPAM] ' : ''}New inquiry from ${inquiry.name}`
     const submittedAt = new Date().toLocaleString('en-US', {
       timeZone: 'America/Chicago',
       dateStyle: 'full',

@@ -14,6 +14,8 @@ export default function RegisterPage() {
     confirmPassword: ''
   });
   const [loading, setLoading] = useState(false);
+  const [website, setWebsite] = useState('');
+  const [mountedAt] = useState(() => Date.now());
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,7 +40,9 @@ export default function RegisterPage() {
         body: JSON.stringify({
           name: formData.name,
           email: formData.email,
-          password: formData.password
+          password: formData.password,
+          website,
+          mountedAt,
         })
       });
 
@@ -67,6 +71,16 @@ export default function RegisterPage() {
           <h1 className="text-2xl font-bold text-center mb-6">Create Account</h1>
           
           <form onSubmit={handleSubmit} className="space-y-4">
+            <input
+              type="text"
+              name="website"
+              value={website}
+              onChange={(e) => setWebsite(e.target.value)}
+              tabIndex={-1}
+              autoComplete="off"
+              aria-hidden="true"
+              style={{ position: 'absolute', left: '-9999px', width: '1px', height: '1px' }}
+            />
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Full Name

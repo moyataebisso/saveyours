@@ -1,10 +1,35 @@
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { supabaseAdmin } from '@/lib/supabase-admin';
+import { checkFormSubmission } from '@/lib/form-guard';
 
 export async function POST(request: Request) {
   try {
-    const { name, email, password } = await request.json();
+    const body = await request.json();
+
+    const guard = checkFormSubmission(request, body, {
+      formName: 'register',
+      honeypot: true,
+      timing: { minSeconds: 3 },
+      gibberishFields: ['name'],
+      emailField: 'email',
+      rateLimit: { maxPerHour: 3, identifierField: 'email' },
+    });
+    if (guard.decision === 'silent-accept') {
+      // Generic soft failure — same message for every silent-accept reason
+      // so a bot learns nothing from response differentiation, and a
+      // legitimate user who somehow trips a check gets a concrete path
+      // forward instead of a fake success + failed login later.
+      return NextResponse.json(
+        {
+          error:
+            "We couldn't complete your registration. Please email info@saveyours.net and we'll get you set up.",
+        },
+        { status: 400 }
+      );
+    }
+
+    const { name, email, password } = body ?? {};
 
     // Check if user already exists
     const { data: existingUser } = await supabaseAdmin

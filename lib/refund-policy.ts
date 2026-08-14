@@ -13,9 +13,22 @@ export const REFUND_POLICY: {
   intro: string
   sections: RefundPolicySection[]
   contactEmail: string
+  // One-sentence compression of the two Cancellations bullets. Correct in
+  // matter-of-fact contexts (policy summaries, receipts). Do NOT use it at
+  // moments of hesitation — "non-refundable" is the harshest possible
+  // framing there. Kept next to the full policy so it can't drift.
+  oneSentence: string
+  // Reassurance framing for moments when the shopper is hesitating (the
+  // exit-intent modal on /cart). Uses the rescheduling angle rather than
+  // the refund cliff — same underlying policy, softer angle.
+  reassuranceSentence: string
 } = {
   intro:
     'At SaveYours LLC, we value your commitment to learning lifesaving skills. To ensure fairness and accommodate all participants, we have the following cancellation and rescheduling policy:',
+  oneSentence:
+    'A full refund is available within 24 hours of registration; after that, course fees are non-refundable.',
+  reassuranceSentence:
+    'Plans change — you can reschedule free with 24 hours notice.',
   sections: [
     {
       heading: 'Cancellations',

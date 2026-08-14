@@ -10,6 +10,7 @@ import { Trash2, X } from 'lucide-react';
 import type { ClassSessionWithClass } from '@/types';
 import { BLENDED_CART_LINE, isBlendedClass } from '@/lib/blended-copy';
 import { REFUND_POLICY } from '@/lib/refund-policy';
+import ExitIntentModal from '@/components/ExitIntentModal';
 
 interface CheckoutFormProps {
   sessions: ClassSessionWithClass[];
@@ -20,14 +21,22 @@ interface CheckoutFormProps {
     newClientSecret: string,
     newAmount: number,
   ) => void;
+  onSubmittingChange?: (submitting: boolean) => void;
 }
 
-function CheckoutForm({ sessions, totalAmount, paymentIntentId, onPaymentIntentRotated }: CheckoutFormProps) {
+function CheckoutForm({ sessions, totalAmount, paymentIntentId, onPaymentIntentRotated, onSubmittingChange }: CheckoutFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [agreeToTerms, setAgreeToTerms] = useState(false);
+
+  // Mirror the submit state up to the parent so it can disable the
+  // exit-intent modal while Stripe is processing. Ref-stable setSubmitting
+  // from useState upstream means this effect only fires when loading flips.
+  useEffect(() => {
+    onSubmittingChange?.(loading);
+  }, [loading, onSubmittingChange]);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -334,6 +343,10 @@ export default function CartPage() {
   // clientTotal so the button/summary always show what the user will actually
   // be charged, even if the DB price changed while the cart was open.
   const [serverTotal, setServerTotal] = useState<number | null>(null);
+  // True while CheckoutForm is running its submit flow (update-intent +
+  // stripe.confirmPayment). Used to disable the exit-intent modal so it can
+  // never fire mid-payment.
+  const [submitting, setSubmitting] = useState(false);
 
   const clientTotal = cartItems.reduce((sum, item) => sum + (item.class?.price || 0), 0);
   const totalAmount = serverTotal ?? clientTotal;
@@ -577,6 +590,7 @@ export default function CartPage() {
                     sessions={cartItems}
                     totalAmount={totalAmount}
                     paymentIntentId={paymentIntentId}
+                    onSubmittingChange={setSubmitting}
                     onPaymentIntentRotated={(newPiId, newClientSecret, newAmount) => {
                       // Cart's response to a stale-cookie retry inside
                       // CheckoutForm. Rotating clientSecret re-mounts Elements
@@ -626,6 +640,12 @@ export default function CartPage() {
           </div>
         </div>
       </div>
+
+      {/* Exit-intent modal — mounted only after the cart has loaded with
+          items and the user isn't currently submitting to Stripe. The
+          modal itself gates on sessionStorage so it shows at most once
+          per tab session regardless of remounts. */}
+      <ExitIntentModal enabled={!submitting && cartItems.length > 0} />
     </div>
   );
 }

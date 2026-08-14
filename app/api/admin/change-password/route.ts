@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
 
   const { data: user, error } = await supabaseAdmin
     .from('users')
-    .select('id, password_hash')
+    .select('id, password_hash, session_epoch')
     .eq('id', admin.adminId)
     .eq('role', 'admin')
     .maybeSingle()
@@ -66,17 +66,23 @@ export async function POST(req: NextRequest) {
   }
 
   const newHash = await bcrypt.hash(newPassword, 10)
+  // Bumping session_epoch is what makes this a global logout: every existing
+  // admin_session cookie carries the old epoch value, so requireAdmin's DB
+  // check will now 401 them on their very next request across all devices.
+  const newEpoch = (user.session_epoch ?? 0) + 1
   const { error: updateError } = await supabaseAdmin
     .from('users')
-    .update({ password_hash: newHash })
+    .update({ password_hash: newHash, session_epoch: newEpoch })
     .eq('id', admin.adminId)
 
   if (updateError) {
-    console.error('[CHANGE_PASSWORD] Failed to update hash:', updateError)
+    console.error('[CHANGE_PASSWORD] Failed to update hash/epoch:', updateError)
     return NextResponse.json({ error: 'Failed to update password' }, { status: 500 })
   }
 
-  // Invalidate the current session — she must re-log in with the new password.
+  // Also clear the cookie on THIS browser so the response leaves no valid
+  // session behind. Other devices will 401 on their next request via the
+  // epoch mismatch above.
   const res = NextResponse.json({ ok: true })
   res.cookies.set(ADMIN_COOKIE_NAME, '', { ...ADMIN_COOKIE_OPTIONS, maxAge: 0 })
   return res

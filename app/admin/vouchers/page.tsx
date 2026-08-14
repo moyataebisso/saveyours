@@ -1,9 +1,7 @@
 'use client';
-import { supabase } from '@/lib/supabase';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Plus, Link as LinkIcon, CheckCircle, Clock, Trash2, Edit, Copy, Check, X } from 'lucide-react';
-import { supabaseHelpers } from '@/lib/supabase';
 import { toast } from '@/components/ui/Toaster';
 import type { ClassSession, VoucherLink } from '@/types';
 
@@ -106,17 +104,12 @@ export default function VouchersPage() {
   const loadSessions = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('class_sessions')
-        .select('*, class:classes(*)')
-        .in('status', ['scheduled', 'full'])
-        .order('date', { ascending: true });
-
-      if (error) {
-        console.error('Error loading sessions:', error);
+      const res = await fetch('/api/admin/sessions?status=scheduled,full', { cache: 'no-store' });
+      if (!res.ok) {
         toast.error('Failed to load sessions');
       } else {
-        setSessions(data || []);
+        const data = await res.json();
+        setSessions(data.sessions || []);
       }
     } catch (error) {
       console.error('Error:', error);
@@ -126,12 +119,17 @@ export default function VouchersPage() {
   };
 
   const loadVouchers = async (sessionId: string) => {
-    const { data, error } = await supabaseHelpers.getVouchersForSession(sessionId);
-    if (error) {
-      console.error('Error loading vouchers:', error);
+    try {
+      const res = await fetch(`/api/admin/vouchers?sessionId=${encodeURIComponent(sessionId)}`, { cache: 'no-store' });
+      if (!res.ok) {
+        toast.error('Failed to load vouchers');
+      } else {
+        const data = await res.json();
+        setVouchers(data.vouchers || []);
+      }
+    } catch (error) {
+      console.error('Error:', error);
       toast.error('Failed to load vouchers');
-    } else {
-      setVouchers(data || []);
     }
   };
 
@@ -155,13 +153,16 @@ export default function VouchersPage() {
 
     setAdding(true);
     try {
-      const { data, error } = await supabaseHelpers.addVouchers(selectedSessionId, urls);
-
-      if (error) {
-        console.error('Error adding vouchers:', error);
-        toast.error('Failed to add vouchers: ' + (error.message || 'Unknown error'));
+      const res = await fetch('/api/admin/vouchers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: selectedSessionId, urls }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error('Failed to add vouchers: ' + (data?.error || 'Unknown error'));
       } else {
-        toast.success(`Added ${data?.length || urls.length} vouchers`);
+        toast.success(`Added ${data.vouchers?.length || urls.length} vouchers`);
         setVoucherUrls('');
         loadVouchers(selectedSessionId);
       }
@@ -176,9 +177,8 @@ export default function VouchersPage() {
   const handleDeleteVoucher = async (voucherId: string) => {
     setDeletingVoucherId(voucherId);
     try {
-      const { error } = await supabaseHelpers.deleteVoucher(voucherId);
-      if (error) {
-        console.error('Error deleting voucher:', error);
+      const res = await fetch(`/api/admin/vouchers/${voucherId}`, { method: 'DELETE' });
+      if (!res.ok) {
         toast.error('Failed to delete voucher');
       } else {
         toast.success('Voucher deleted');
@@ -203,9 +203,12 @@ export default function VouchersPage() {
 
     setBulkDeleting(true);
     try {
-      const { error } = await supabaseHelpers.deleteVouchers(Array.from(selectedVouchers));
-      if (error) {
-        console.error('Error deleting vouchers:', error);
+      const res = await fetch('/api/admin/vouchers/delete-batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: Array.from(selectedVouchers) }),
+      });
+      if (!res.ok) {
         toast.error('Failed to delete vouchers');
       } else {
         toast.success(`Deleted ${selectedVouchers.size} vouchers`);
@@ -229,9 +232,12 @@ export default function VouchersPage() {
     assigned_at?: string | null;
   }) => {
     try {
-      const { error } = await supabaseHelpers.updateVoucher(voucherId, updates);
-      if (error) {
-        console.error('Error updating voucher:', error);
+      const res = await fetch(`/api/admin/vouchers/${voucherId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) {
         toast.error('Failed to update voucher');
       } else {
         toast.success('Voucher updated');
@@ -268,24 +274,28 @@ export default function VouchersPage() {
 
     if (isNewAssignment && editingVoucher) {
       // Lowercase both sides to defeat the known email case-sensitivity bug.
-      const { data: enrollments, error: enrollmentsError } = await supabase
-        .from('enrollments')
-        .select('guest_email')
-        .eq('session_id', editingVoucher.session_id)
-        .neq('status', 'cancelled');
-
-      if (enrollmentsError) {
-        console.error('[VOUCHERS] Failed to look up enrollments for assignment check:', enrollmentsError);
-        // Lookup failure = unknown. Warn rather than silently proceed.
-        setPendingAssignment({ voucherId, updates });
-        return;
-      }
-
-      const hasMatchingEnrollment = (enrollments || []).some(e =>
-        (e.guest_email || '').trim().toLowerCase() === targetEmail
-      );
-
-      if (!hasMatchingEnrollment) {
+      try {
+        const res = await fetch(
+          `/api/admin/enrollments/emails-for-session?sessionId=${encodeURIComponent(editingVoucher.session_id)}`,
+          { cache: 'no-store' }
+        );
+        if (!res.ok) {
+          console.error('[VOUCHERS] Failed to look up enrollments for assignment check');
+          // Lookup failure = unknown. Warn rather than silently proceed.
+          setPendingAssignment({ voucherId, updates });
+          return;
+        }
+        const data = await res.json();
+        const emails: string[] = Array.isArray(data.emails) ? data.emails : [];
+        const hasMatchingEnrollment = emails.some(
+          (e) => (e || '').trim().toLowerCase() === targetEmail
+        );
+        if (!hasMatchingEnrollment) {
+          setPendingAssignment({ voucherId, updates });
+          return;
+        }
+      } catch (err) {
+        console.error('[VOUCHERS] enrollments check threw:', err);
         setPendingAssignment({ voucherId, updates });
         return;
       }

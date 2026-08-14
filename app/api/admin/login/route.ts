@@ -19,7 +19,7 @@ export async function POST(request: Request) {
 
     const { data: user, error } = await supabaseAdmin
       .from('users')
-      .select('id, email, full_name, role, password_hash')
+      .select('id, email, full_name, role, password_hash, session_epoch')
       .eq('email', email)
       .eq('role', 'admin')
       .maybeSingle()
@@ -33,7 +33,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
     }
 
-    const session = issueAdminSession({ adminId: user.id, email: user.email })
+    const session = issueAdminSession({
+      adminId: user.id,
+      email: user.email,
+      epoch: user.session_epoch ?? 0,
+    })
     const res = NextResponse.json({
       id: user.id,
       email: user.email,

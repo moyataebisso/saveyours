@@ -1,11 +1,54 @@
 'use client';
 
+// TEMPORARILY DISABLED (2026-08-13): the original dashboard read enrollments
+// by a typed-in email with no verification of email ownership — a live PII
+// leak. Do NOT restore this until the student OTP session lands
+// (lib/student-auth.ts + /api/student/enrollments). When restoring, delete
+// the DisabledDashboard export below and rename OriginalUserDashboard back
+// to the default export.
+
 import { useState, useEffect } from 'react';
-import { Calendar, Clock, MapPin, CheckCircle, AlertCircle } from 'lucide-react';
+import Link from 'next/link';
+import { Calendar, Clock, MapPin, CheckCircle, AlertCircle, Mail } from 'lucide-react';
 import { supabaseHelpers } from '@/lib/supabase';
 import type { Enrollment } from '@/types';
 
-export default function UserDashboard() {
+export default function DisabledDashboard() {
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+      <div className="max-w-md w-full bg-white rounded-lg shadow-md p-8 text-center">
+        <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Mail className="w-8 h-8 text-primary-600" />
+        </div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-3">Enrollment Status Lookup</h1>
+        <p className="text-gray-600 mb-6">
+          Self-service enrollment lookup is temporarily unavailable while we improve
+          how we verify your identity. For the status of your enrollment, please contact
+          us at{' '}
+          <a
+            href="mailto:info@saveyours.net"
+            className="text-primary-600 font-medium hover:underline"
+          >
+            info@saveyours.net
+          </a>
+          .
+        </p>
+        <Link
+          href="/contact"
+          className="inline-block bg-primary-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-primary-700"
+        >
+          Go to Contact Page
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+// Original implementation preserved verbatim for the OTP restoration phase.
+// The lint rule for unused vars is suppressed intentionally — this function
+// is intended to remain in the file until student auth lands.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function OriginalUserDashboard() {
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState('');
@@ -40,11 +83,11 @@ export default function UserDashboard() {
     }
   }, []);
 
-  const upcomingClasses = enrollments.filter(e => 
+  const upcomingClasses = enrollments.filter(e =>
     e.session && new Date(e.session.date) >= new Date()
   );
 
-  const completedClasses = enrollments.filter(e => 
+  const completedClasses = enrollments.filter(e =>
     e.status === 'completed'
   );
 
@@ -119,7 +162,7 @@ export default function UserDashboard() {
                       <h3 className="font-semibold text-lg mb-2">
                         {enrollment.session?.class?.name}
                       </h3>
-                      
+
                       <div className="space-y-2 text-sm text-gray-600">
                         <div className="flex items-center">
                           <Calendar className="w-4 h-4 mr-2" />
@@ -170,14 +213,14 @@ export default function UserDashboard() {
                             {enrollment.session?.class?.name}
                           </h3>
                           <p className="text-sm text-gray-600">
-                            Completed: {enrollment.completed_at && 
+                            Completed: {enrollment.completed_at &&
                               new Date(enrollment.completed_at).toLocaleDateString()
                             }
                           </p>
                         </div>
                         <CheckCircle className="w-5 h-5 text-green-600" />
                       </div>
-                      
+
                       {enrollment.certification_expires && (
                         <div className="mt-3 p-2 bg-green-50 rounded">
                           <p className="text-sm text-green-800">

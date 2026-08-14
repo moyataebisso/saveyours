@@ -1,11 +1,17 @@
 'use client';
-import { supabase } from '@/lib/supabase';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Calendar, Users, MessageSquare, Plus, Edit, Trash2, CheckCircle, X, Clock, Phone, Mail, Save, Link } from 'lucide-react';
-import { supabaseHelpers } from '@/lib/supabase';
 import { toast } from '@/components/ui/Toaster';
 import type { Enrollment, ClassSession, Inquiry, Class } from '@/types';
+
+interface OverviewStats {
+  totalEnrollments: number;
+  totalRevenue: number;
+  activeClassRevenue: number;
+  upcomingSessions: number;
+  newInquiries: number;
+}
 
 // Mirrors the formatTime helper in app/api/enrollment/create/route.ts.
 // Input is the raw class_sessions.start_time value ("HH:MM" or "HH:MM:SS");
@@ -33,6 +39,7 @@ export default function AdminDashboard() {
   const [sessions, setSessions] = useState<ClassSession[]>([]);
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [classes, setClasses] = useState<Class[]>([]);
+  const [stats, setStats] = useState<OverviewStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAddSession, setShowAddSession] = useState(false);
   const [editingSession, setEditingSession] = useState<ClassSession | null>(null);
@@ -124,35 +131,27 @@ export default function AdminDashboard() {
     router.push('/');
   };
 
+  // Single-shot dashboard load. /api/admin/overview returns lists (capped)
+  // plus SQL-computed stats. All post-mutation reloads also hit this route
+  // — one round trip keeps the four tabs and the header cards consistent.
   const loadData = async () => {
     setLoading(true);
     try {
-      const { data: sessionsData, error: sessionsError } = await supabase
-        .from('class_sessions')
-        .select('*, class:classes(*)')
-        .order('date', { ascending: true });
-
-      if (sessionsError) {
-        console.error('Error loading sessions:', sessionsError);
-        toast.error('Failed to load sessions');
+      const res = await fetch('/api/admin/overview', { cache: 'no-store' });
+      if (!res.ok) {
+        if (res.status === 401) {
+          localStorage.removeItem('adminAuthenticated');
+          setIsAuthenticated(false);
+        }
+        toast.error('Failed to load data');
       } else {
-        console.log('Loaded sessions with IDs:', sessionsData?.map(s => ({ 
-          id: s.id, 
-          date: s.date, 
-          status: s.status 
-        })));
-        setSessions(sessionsData || []);
+        const data = await res.json();
+        setSessions(data.sessions || []);
+        setEnrollments(data.enrollments || []);
+        setInquiries(data.inquiries || []);
+        setClasses(data.classes || []);
+        setStats(data.stats || null);
       }
-
-      const [enrollmentsData, inquiriesData, classesData] = await Promise.all([
-        supabaseHelpers.getAllEnrollments(),
-        supabaseHelpers.getInquiries(),
-        supabase.from('classes').select('*')
-      ]);
-
-      setEnrollments(enrollmentsData.data || []);
-      setInquiries(inquiriesData.data || []);
-      setClasses(classesData.data || []);
     } catch (error) {
       console.error('Error loading data:', error);
       toast.error('Failed to load data');
@@ -161,121 +160,94 @@ export default function AdminDashboard() {
   };
 
   const markEnrollmentComplete = async (enrollmentId: string) => {
-    const { data: enrollment } = await supabase
-      .from('enrollments')
-      .select('status')
-      .eq('id', enrollmentId)
-      .single();
-
-    if (enrollment?.status === 'cancelled') {
-      toast.error('Cannot complete a cancelled enrollment');
-      return;
-    }
-
-    const { error } = await supabase
-      .from('enrollments')
-      .update({ 
-        status: 'completed',
-        online_course_completed: true
-      })
-      .eq('id', enrollmentId);
-
-    if (!error) {
+    try {
+      const res = await fetch(`/api/admin/enrollments/${enrollmentId}/complete`, { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data?.error || 'Failed to update enrollment');
+        return;
+      }
       toast.success('Enrollment marked as complete');
       loadData();
-    } else {
+    } catch (err) {
+      console.error('markEnrollmentComplete threw:', err);
       toast.error('Failed to update enrollment');
     }
   };
 
   const restoreEnrollment = async (enrollmentId: string, sessionId: string) => {
-    console.log('=== RESTORE ENROLLMENT ===');
-    console.log('Enrollment ID:', enrollmentId);
-    console.log('Session ID:', sessionId);
-    
-    const { data, error } = await supabaseHelpers.restoreEnrollment(enrollmentId, sessionId);
-    
-    if (error) {
-      console.error('Error:', error);
-      toast.error(error.message || 'Failed to restore enrollment');
-    } else {
-      console.log('Enrollment restored successfully');
+    try {
+      const res = await fetch(`/api/admin/enrollments/${enrollmentId}/restore`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data?.error || 'Failed to restore enrollment');
+        return;
+      }
       toast.success('Enrollment restored successfully');
       loadData();
+    } catch (err) {
+      console.error('restoreEnrollment threw:', err);
+      toast.error('Failed to restore enrollment');
     }
   };
 
   const removeEnrollment = async (enrollmentId: string, sessionId: string, studentName: string) => {
     if (!confirm(`Remove ${studentName} from this class? This will free up their spot.`)) return;
 
-    const { error } = await supabaseHelpers.removeEnrollment(enrollmentId, sessionId);
-
-    if (error) {
-      toast.error(error.message || 'Failed to remove enrollment');
-    } else {
+    try {
+      const res = await fetch(`/api/admin/enrollments/${enrollmentId}/remove`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data?.error || 'Failed to remove enrollment');
+        return;
+      }
       toast.success('Student removed and spot freed up');
       loadData();
+    } catch (err) {
+      console.error('removeEnrollment threw:', err);
+      toast.error('Failed to remove enrollment');
     }
   };
 
   const cancelSession = async (sessionId: string) => {
-    console.log('=== CANCEL SESSION ===');
-    console.log('Session ID to cancel:', sessionId);
-    
     setCancellingSession(sessionId);
-    
+
     try {
-      const { data, error } = await supabase
-        .from('class_sessions')
-        .update({ status: 'cancelled' })
-        .eq('id', sessionId)
-        .select();
-      
-      console.log('Update result - Data:', data, 'Error:', error);
-      
-      if (error) {
-        console.error('Supabase error:', error);
-        
-        if (error.message?.includes('permission') || error.message?.includes('RLS')) {
-          toast.error('Permission denied. Check Row Level Security policies.');
-        } else {
-          toast.error(`Database error: ${error.message}`);
-        }
+      const res = await fetch(`/api/admin/sessions/${sessionId}/cancel`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        toast.error(data?.error || 'Failed to cancel session');
         return;
       }
-      
-      if (data && data.length > 0) {
-        console.log('Session cancelled successfully');
-        toast.success('Session cancelled successfully');
-        
-        setSessions(prevSessions => 
-          prevSessions.map(session => 
-            session.id === sessionId
-              ? { ...session, status: 'cancelled' }
-              : session
-          )
-        );
-        
-        const cancelEnrollments = async () => {
-          try {
-            await supabase
-              .from('enrollments')
-              .update({ status: 'cancelled' })
-              .eq('session_id', sessionId);
-            console.log('Enrollments cancelled');
-          } catch (err) {
-            console.error('Error cancelling enrollments:', err);
-          }
-        };
-        cancelEnrollments();
-        
-      } else {
-        console.log('No data returned - session may not exist');
-        toast.error('Session not found in database');
+
+      toast.success('Session cancelled successfully');
+
+      // Optimistic local update — the server-side cascade already ran, but
+      // we refresh below via loadData to pull the canonical state.
+      setSessions(prevSessions =>
+        prevSessions.map(session =>
+          session.id === sessionId
+            ? { ...session, status: 'cancelled' }
+            : session
+        )
+      );
+
+      if (data.cascadeError) {
+        console.error('[CANCEL_SESSION] Enrollment cascade error (non-fatal):', data.cascadeError);
       }
-      
+
+      loadData();
     } catch (err) {
-      console.error('Unexpected error:', err);
+      console.error('cancelSession threw:', err);
       toast.error('Unexpected error. Check browser console for details.');
     } finally {
       setCancellingSession(null);
@@ -283,30 +255,31 @@ export default function AdminDashboard() {
   };
 
   const updateInquiryStatus = async (inquiryId: string, status: 'contacted' | 'resolved') => {
-    console.log('=== UPDATE INQUIRY STATUS ===');
-    console.log('Inquiry ID:', inquiryId);
-    console.log('New Status:', status);
-    
-    setInquiries(prevInquiries => 
-      prevInquiries.map(inq => 
-        inq.id === inquiryId 
-          ? { ...inq, status } 
+    setInquiries(prevInquiries =>
+      prevInquiries.map(inq =>
+        inq.id === inquiryId
+          ? { ...inq, status }
           : inq
       )
     );
-    
-    const { error, data } = await supabaseHelpers.updateInquiryStatus(inquiryId, status);
-    
-    console.log('Update result - Error:', error, 'Data:', data);
-    
-    if (!error) {
-      toast.success(`Inquiry marked as ${status}`);
-      await loadData();
-    } else {
+
+    try {
+      const res = await fetch(`/api/admin/inquiries/${inquiryId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data?.error || 'Failed to update inquiry');
+      } else {
+        toast.success(`Inquiry marked as ${status}`);
+      }
+    } catch (err) {
+      console.error('updateInquiryStatus threw:', err);
       toast.error('Failed to update inquiry');
-      console.error('Error updating inquiry:', error);
-      await loadData();
     }
+    await loadData();
   };
 
   // Loading state while probing the session cookie on mount.
@@ -369,44 +342,14 @@ export default function AdminDashboard() {
     );
   }
 
-  // Calculate stats
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  // Include every paid enrollment regardless of status or session date so newly
-  // created enrollments (which start as payment_status='paid', status='pending')
-  // and past-dated sessions still show up in the totals.
-  const paidEnrollmentsList = enrollments.filter(e => e.payment_status === 'paid');
-  const totalEnrollments = paidEnrollmentsList.length;
-  const totalRevenue = paidEnrollmentsList
-    .reduce((sum, e) => sum + Number(e.amount_paid || 0), 0);
-
-  // Local date string, NOT toISOString() — that converts to UTC and shifts the
-  // date after ~7pm Central, causing an off-by-one-day bug (known issue in this codebase).
-  const now = new Date();
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-
-  // Active = upcoming AND not cancelled. Deliberately NOT `status === 'scheduled'`:
-  // a session that fills flips to 'full' and would otherwise drop out of revenue.
-  const activeSessionIds = new Set(
-    sessions
-      .filter(s => String(s.date).slice(0, 10) >= todayStr && s.status !== 'cancelled')
-      .map(s => s.id)
-  );
-
-  const activeClassRevenue = enrollments
-    .filter(e =>
-      e.payment_status === 'paid' &&
-      e.status !== 'cancelled' &&
-      activeSessionIds.has(e.session_id)
-    )
-    .reduce((sum, e) => sum + Number(e.amount_paid || 0), 0);
-
-  const upcomingSessions = sessions.filter(s => {
-    const sessionDate = new Date(s.date);
-    return sessionDate >= today && s.status === 'scheduled';
-  }).length;
-  const newInquiries = inquiries.filter(i => i.status === 'new').length;
+  // Stats come from /api/admin/overview — SQL-computed against the full
+  // tables, so they're accurate even though the enrollments/inquiries lists
+  // are capped for display. Fall back to zeros before the first load lands.
+  const totalEnrollments = stats?.totalEnrollments ?? 0;
+  const totalRevenue = stats?.totalRevenue ?? 0;
+  const activeClassRevenue = stats?.activeClassRevenue ?? 0;
+  const upcomingSessions = stats?.upcomingSessions ?? 0;
+  const newInquiries = stats?.newInquiries ?? 0;
 
   // Organize inquiries by status
   const newInquiriesList = inquiries.filter(i => i.status === 'new');
@@ -1256,12 +1199,21 @@ function AddSessionModal({ classes, onClose }: { classes: Class[], onClose: () =
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('📅 Submitting session with date:', formData.date);
-    const { error } = await supabaseHelpers.createClassSession(formData);
-    if (!error) {
+    try {
+      const res = await fetch('/api/admin/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data?.error || 'Failed to create session');
+        return;
+      }
       toast.success('Session created successfully');
       onClose();
-    } else {
+    } catch (err) {
+      console.error('createClassSession threw:', err);
       toast.error('Failed to create session');
     }
   };
@@ -1373,19 +1325,30 @@ function EditSessionModal({ session, classes, onClose }: { session: ClassSession
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('📅 Updating session with date:', formData.date);
 
-    // If capacity increased on a full session, update status back to scheduled
+    // If capacity increased on a full session, flip status back to scheduled.
+    // Client decides this because it knows the pre-edit state; server just
+    // whitelist-applies whatever we send.
     const updates: Partial<import('@/types').SessionData> & { status?: string } = { ...formData };
     if (session.status === 'full' && formData.max_capacity > session.current_enrollment) {
       updates.status = 'scheduled';
     }
 
-    const { error } = await supabaseHelpers.updateClassSession(session.id, updates);
-    if (!error) {
+    try {
+      const res = await fetch(`/api/admin/sessions/${session.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data?.error || 'Failed to update session');
+        return;
+      }
       toast.success('Session updated successfully');
       onClose();
-    } else {
+    } catch (err) {
+      console.error('updateClassSession threw:', err);
       toast.error('Failed to update session');
     }
   };

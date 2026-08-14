@@ -1,17 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { sendAdminAlert } from '@/lib/email'
+import { sendAdminAlert, escapeHtml as escapeHtmlBase } from '@/lib/email'
 
+// Local wrapper: renders empty/nullish values as an em dash so the admin
+// email table looks tidy instead of showing blank cells for optional fields.
 function escapeHtml(value: unknown): string {
   if (value === null || value === undefined || value === '') return '&mdash;'
   const str = String(value)
   if (str.trim() === '') return '&mdash;'
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
+  return escapeHtmlBase(str)
 }
 
 // Server-side validation. The client used to insert the inquiry directly into

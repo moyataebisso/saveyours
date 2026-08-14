@@ -1,5 +1,19 @@
 import nodemailer from 'nodemailer'
 
+// Shared HTML escaper for every email template in the repo. Any user-supplied
+// or DB-supplied value interpolated into an email body must go through this —
+// unescaped interpolation turns confirmation/voucher/admin-alert emails into
+// phishing vectors (see attacker-controlled name/className/message fields).
+export function escapeHtml(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 function formatTime(time: string): string {
   if (!time) return '';
   const [hours, minutes] = time.split(':');
@@ -64,25 +78,25 @@ export async function sendEnrollmentConfirmation(
           <h1>SaveYours Training Confirmation</h1>
         </div>
         <div class="content">
-          <p>Dear ${enrollmentDetails.name},</p>
+          <p>Dear ${escapeHtml(enrollmentDetails.name)},</p>
           <p>Thank you for registering for the following class:</p>
-          
+
           <table>
             <tr>
               <td>Class:</td>
-              <td>${enrollmentDetails.className}</td>
+              <td>${escapeHtml(enrollmentDetails.className)}</td>
             </tr>
             <tr>
               <td>Date:</td>
-              <td>${formattedDate}</td>
+              <td>${escapeHtml(formattedDate)}</td>
             </tr>
             <tr>
               <td>Time:</td>
-              <td>${enrollmentDetails.time}</td>
+              <td>${escapeHtml(enrollmentDetails.time)}</td>
             </tr>
             <tr>
               <td>Location:</td>
-              <td>${enrollmentDetails.location || '10800 Lyndale Ave S Suite 310, Bloomington, MN 55420'}</td>
+              <td>${escapeHtml(enrollmentDetails.location || '10800 Lyndale Ave S Suite 310, Bloomington, MN 55420')}</td>
             </tr>
           </table>
           
@@ -193,15 +207,15 @@ export async function sendRefundNotification(
           <h1>Class Full - Refund Issued</h1>
         </div>
         <div class="content">
-          <p>Dear ${details.name},</p>
+          <p>Dear ${escapeHtml(details.name)},</p>
           <p>We're sorry, but the class you registered for has reached full capacity:</p>
           <table style="width:100%;border-collapse:collapse;margin:20px 0;">
-            <tr><td style="padding:10px;border-bottom:1px solid #ddd;font-weight:bold;width:30%;">Class:</td><td style="padding:10px;border-bottom:1px solid #ddd;">${details.className}</td></tr>
-            <tr><td style="padding:10px;border-bottom:1px solid #ddd;font-weight:bold;">Date:</td><td style="padding:10px;border-bottom:1px solid #ddd;">${formattedDate}</td></tr>
-            <tr><td style="padding:10px;border-bottom:1px solid #ddd;font-weight:bold;">Time:</td><td style="padding:10px;border-bottom:1px solid #ddd;">${details.time}</td></tr>
+            <tr><td style="padding:10px;border-bottom:1px solid #ddd;font-weight:bold;width:30%;">Class:</td><td style="padding:10px;border-bottom:1px solid #ddd;">${escapeHtml(details.className)}</td></tr>
+            <tr><td style="padding:10px;border-bottom:1px solid #ddd;font-weight:bold;">Date:</td><td style="padding:10px;border-bottom:1px solid #ddd;">${escapeHtml(formattedDate)}</td></tr>
+            <tr><td style="padding:10px;border-bottom:1px solid #ddd;font-weight:bold;">Time:</td><td style="padding:10px;border-bottom:1px solid #ddd;">${escapeHtml(details.time)}</td></tr>
           </table>
           <div class="notice">
-            <strong>A full refund of ${details.amountRefunded} has been issued to your original payment method.</strong>
+            <strong>A full refund of ${escapeHtml(details.amountRefunded)} has been issued to your original payment method.</strong>
             Please allow 5-10 business days for the refund to appear on your statement.
           </div>
           <p>We apologize for the inconvenience. Please visit <a href="https://saveyours.net/classes" style="color:#DC2626;">our website</a> to view other available class dates.</p>
@@ -250,6 +264,23 @@ export async function sendVoucherEmail(
     voucherUrlPreview: voucherDetails.voucherUrl?.substring(0, 50) + '...'
   });
 
+  // Reject anything other than http(s). javascript: and data: URLs escape
+  // through HTML escaping and would render as clickable in most mail clients.
+  // A bad URL here means the admin uploaded a bogus voucher — the enrollment
+  // itself still succeeds; the failure surfaces in the reconcile UI so the
+  // admin can fix it manually.
+  if (
+    typeof voucherDetails.voucherUrl !== 'string' ||
+    !/^https?:\/\//i.test(voucherDetails.voucherUrl)
+  ) {
+    console.error('[VOUCHER EMAIL] Refusing to send: voucherUrl is not http(s):', {
+      to,
+      className: voucherDetails.className,
+      voucherUrlPreview: (voucherDetails.voucherUrl ?? '').toString().slice(0, 50),
+    })
+    return { success: false, error: 'invalid_voucher_url' as const }
+  }
+
   const formattedDate = new Date(voucherDetails.date).toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
@@ -280,15 +311,15 @@ export async function sendVoucherEmail(
           <h1>Blended Course Information</h1>
         </div>
         <div class="content">
-          <p>Hello ${voucherDetails.name},</p>
+          <p>Hello ${escapeHtml(voucherDetails.name)},</p>
 
-          <p>Thank you for choosing SaveYours for your certification needs. Please follow the directions below to register for the online portion of the American Red Cross ${voucherDetails.className} course.</p>
+          <p>Thank you for choosing SaveYours for your certification needs. Please follow the directions below to register for the online portion of the American Red Cross ${escapeHtml(voucherDetails.className)} course.</p>
 
           <p>You must complete the online course content and present proof of completion in order to attend and participate in the in-person classroom course session(s) scheduled to meet on the following date(s), time(s) and location:</p>
 
           <div class="details-box">
-            <p><strong>Date(s):</strong> ${formattedDate}</p>
-            <p><strong>Time(s):</strong> ${voucherDetails.time}</p>
+            <p><strong>Date(s):</strong> ${escapeHtml(formattedDate)}</p>
+            <p><strong>Time(s):</strong> ${escapeHtml(voucherDetails.time)}</p>
             <p><strong>Location:</strong> 10800 Lyndale Ave S Suite 310, Bloomington, MN 55420</p>
           </div>
 
@@ -297,7 +328,7 @@ export async function sendVoucherEmail(
           <p><strong>To register for and access the online portion of the course:</strong></p>
 
           <p style="text-align: center;">
-            <a href="${voucherDetails.voucherUrl}" class="voucher-link" style="background-color: #DC2626; color: #FFFFFF; padding: 15px 25px; text-decoration: none; display: inline-block; border-radius: 5px; margin: 20px 0; font-weight: bold;">Access Your Online Course</a>
+            <a href="${escapeHtml(voucherDetails.voucherUrl)}" class="voucher-link" style="background-color: #DC2626; color: #FFFFFF; padding: 15px 25px; text-decoration: none; display: inline-block; border-radius: 5px; margin: 20px 0; font-weight: bold;">Access Your Online Course</a>
           </p>
 
           <div class="steps">
@@ -312,7 +343,7 @@ export async function sendVoucherEmail(
               </li>
               <li>Note: If an Email Verification Confirmation message appears click "Return" and verify the email address entered is a valid email. Then click "Register" and "Login" and click "Proceed."</li>
               <li>Check your email account for an email from The American Red Cross. Click the link provided in the email and enter your Username (provided in the email) and password. If you already have an account in the Red Cross Learning Center, we recommend you use your existing Red Cross Learning Center password (If you do not see the email, check your junk/spam folders).</li>
-              <li>Once in the Red Cross Learning Center, the class(es) you are taking will show on the Home page. Click the ${voucherDetails.className} course and click the launch button to get started. Digital course materials are available and in the Materials tab. You may also shop for and purchase materials and supplies by clicking the link on your Home page.</li>
+              <li>Once in the Red Cross Learning Center, the class(es) you are taking will show on the Home page. Click the ${escapeHtml(voucherDetails.className)} course and click the launch button to get started. Digital course materials are available and in the Materials tab. You may also shop for and purchase materials and supplies by clicking the link on your Home page.</li>
             </ol>
           </div>
 

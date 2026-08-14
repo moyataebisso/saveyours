@@ -13,9 +13,14 @@ interface CheckoutFormProps {
   sessions: ClassSessionWithClass[];
   totalAmount: number;
   paymentIntentId: string;
+  onPaymentIntentRotated: (
+    newPaymentIntentId: string,
+    newClientSecret: string,
+    newAmount: number,
+  ) => void;
 }
 
-function CheckoutForm({ sessions, totalAmount, paymentIntentId }: CheckoutFormProps) {
+function CheckoutForm({ sessions, totalAmount, paymentIntentId, onPaymentIntentRotated }: CheckoutFormProps) {
   const stripe = useStripe();
   const elements = useElements();
   const router = useRouter();
@@ -27,11 +32,35 @@ function CheckoutForm({ sessions, totalAmount, paymentIntentId }: CheckoutFormPr
     phone: ''
   });
 
+  // Attempt to write customer identity onto the PaymentIntent's metadata.
+  // Returns 'ok' on success, 'stale' if the ownership cookie is stale (401)
+  // — the caller decides what to do on 'stale'. Any other failure returns
+  // 'error' and is surfaced generically.
+  const runUpdateIntent = async (piId: string): Promise<'ok' | 'stale' | 'error'> => {
+    try {
+      const res = await fetch('/api/payment/update-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentIntentId: piId,
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone || '',
+        }),
+      });
+      if (res.ok) return 'ok';
+      if (res.status === 401) return 'stale';
+      return 'error';
+    } catch {
+      return 'error';
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!stripe || !elements) return;
-    
+
     if (!formData.name || !formData.email) {
       toast.error('Please fill in all required fields');
       return;
@@ -44,25 +73,63 @@ function CheckoutForm({ sessions, totalAmount, paymentIntentId }: CheckoutFormPr
 
     setLoading(true);
 
-    // Update payment intent with customer data BEFORE charging
-    try {
-      const updateResponse = await fetch('/api/payment/update-intent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          paymentIntentId,
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone || ''
-        })
-      });
+    // Update payment intent with customer data BEFORE charging.
+    // On 401 (stale ownership cookie — user idled 24h+), mint a fresh PI
+    // and retry exactly once. If the retry succeeds, the parent rotates
+    // to the new clientSecret which re-mounts Stripe Elements — card
+    // entry resets. We tell the user their session refreshed and ask
+    // them to click Submit again; we do NOT say saving failed.
+    let updateStatus = await runUpdateIntent(paymentIntentId);
 
-      if (!updateResponse.ok) {
-        toast.error('Failed to save your information. Please try again.');
+    if (updateStatus === 'stale') {
+      try {
+        const createRes = await fetch('/api/payment/create-intent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionIds: sessions.map((s) => s.id),
+            idempotencyKey: crypto.randomUUID(),
+          }),
+        });
+        const createData = await createRes.json().catch(() => ({}));
+
+        if (
+          !createRes.ok ||
+          !createData?.paymentIntentId ||
+          !createData?.clientSecret
+        ) {
+          toast.error('Your session expired. Please refresh the page and try again.');
+          setLoading(false);
+          return;
+        }
+
+        // Exactly one retry — targets the freshly-minted PI, not the stale one.
+        const retryStatus = await runUpdateIntent(createData.paymentIntentId);
+        if (retryStatus !== 'ok') {
+          toast.error('Your session expired. Please refresh the page and try again.');
+          setLoading(false);
+          return;
+        }
+
+        // Rotation is unavoidable: Stripe Elements is bound to a specific
+        // clientSecret, so the payment iframe will remount and the card
+        // entry resets. Message the user informationally, not as an error.
+        onPaymentIntentRotated(
+          createData.paymentIntentId,
+          createData.clientSecret,
+          typeof createData.amount === 'number' ? createData.amount : totalAmount,
+        );
+        toast.info('Your session was refreshed. Please re-enter your card details and click Submit again.');
+        setLoading(false);
+        return;
+      } catch {
+        toast.error('Your session expired. Please refresh the page and try again.');
         setLoading(false);
         return;
       }
-    } catch {
+    }
+
+    if (updateStatus !== 'ok') {
       toast.error('Failed to save your information. Please try again.');
       setLoading(false);
       return;
@@ -221,8 +288,13 @@ export default function CartPage() {
   const [loading, setLoading] = useState(true);
   const [stripePromise, setStripePromise] = useState<Promise<Stripe | null> | null>(null);
   const [fullSessions, setFullSessions] = useState<Set<string>>(new Set());
+  // Server-computed total from /api/payment/create-intent. Kept separate from
+  // clientTotal so the button/summary always show what the user will actually
+  // be charged, even if the DB price changed while the cart was open.
+  const [serverTotal, setServerTotal] = useState<number | null>(null);
 
-  const totalAmount = cartItems.reduce((sum, item) => sum + (item.class?.price || 0), 0);
+  const clientTotal = cartItems.reduce((sum, item) => sum + (item.class?.price || 0), 0);
+  const totalAmount = serverTotal ?? clientTotal;
   const hasFullSessions = fullSessions.size > 0;
 
   const removeFromCart = async (sessionId: string) => {
@@ -236,26 +308,34 @@ export default function CartPage() {
       return;
     }
 
-    // CRITICAL: Create NEW payment intent with updated total
-    const newTotal = updatedCart.reduce((sum, item) => sum + (item.class?.price || 0), 0);
-
+    // CRITICAL: Create NEW payment intent (server-computed total).
     try {
-      // Cancel old payment intent if it exists
+      // Best-effort cancel of the old PI. This is cleanup — any failure
+      // (401 from a stale ownership cookie, 500, network) MUST NOT block
+      // the user. The new PI still gets created below.
       if (paymentIntentId) {
-        await fetch('/api/payment/cancel-intent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ paymentIntentId })
-        });
+        try {
+          const cancelRes = await fetch('/api/payment/cancel-intent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ paymentIntentId }),
+          });
+          if (!cancelRes.ok) {
+            console.warn('[CART] cancel-intent returned', cancelRes.status, '— continuing');
+          }
+        } catch (cancelErr) {
+          console.warn('[CART] cancel-intent threw — continuing:', cancelErr);
+        }
       }
 
-      // Create new payment intent with remaining items
+      // Create new payment intent with remaining items. Amount is computed
+      // server-side from class prices — the client never sends it.
       const response = await fetch('/api/payment/create-intent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionIds: updatedCart.map(item => item.id),
-          totalAmount: newTotal
+          idempotencyKey: crypto.randomUUID(),
         })
       });
 
@@ -268,6 +348,9 @@ export default function CartPage() {
 
       setClientSecret(data.clientSecret);
       setPaymentIntentId(data.paymentIntentId);
+      if (typeof data.amount === 'number') {
+        setServerTotal(data.amount);
+      }
       toast.success('Item removed from cart');
     } catch (error) {
       console.error('Error updating payment intent:', error);
@@ -298,17 +381,15 @@ export default function CartPage() {
     }
 
     setCartItems(cart);
-    
-    // Create payment intent for total amount with ALL session IDs
-    const total = cart.reduce((sum, item) => sum + (item.class?.price || 0), 0);
 
-    // Re-check capacity for all sessions before creating payment intent
+    // Re-check capacity for all sessions before creating payment intent.
+    // Amount is computed server-side from class prices — the client never sends it.
     fetch('/api/payment/create-intent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         sessionIds: cart.map(item => item.id),
-        totalAmount: total
+        idempotencyKey: crypto.randomUUID(),
       })
     })
     .then(res => res.json().then(data => ({ ok: res.ok, data })))
@@ -333,6 +414,9 @@ export default function CartPage() {
       } else if (data.clientSecret) {
         setClientSecret(data.clientSecret);
         setPaymentIntentId(data.paymentIntentId);
+        if (typeof data.amount === 'number') {
+          setServerTotal(data.amount);
+        }
         setLoading(false);
       } else {
         toast.error('Failed to initialize checkout');
@@ -446,6 +530,16 @@ export default function CartPage() {
                     sessions={cartItems}
                     totalAmount={totalAmount}
                     paymentIntentId={paymentIntentId}
+                    onPaymentIntentRotated={(newPiId, newClientSecret, newAmount) => {
+                      // Cart's response to a stale-cookie retry inside
+                      // CheckoutForm. Rotating clientSecret re-mounts Elements
+                      // (Stripe binds the payment iframe to it), so the card
+                      // entry resets — CheckoutForm has already toasted the
+                      // user that they need to click Submit again.
+                      setPaymentIntentId(newPiId);
+                      setClientSecret(newClientSecret);
+                      setServerTotal(newAmount);
+                    }}
                   />
                 </Elements>
               </div>

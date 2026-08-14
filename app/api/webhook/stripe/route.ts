@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe-server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { sendEnrollmentConfirmation, sendVoucherEmail, sendAdminAlert } from '@/lib/email'
+import { sendEnrollmentConfirmation, sendVoucherEmail, sendAdminAlert, escapeHtml } from '@/lib/email'
 import Stripe from 'stripe'
 
 function formatTime(time: string): string {
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
         `<h2>Payment with Missing Data</h2>
         <p>A payment succeeded in Stripe but is missing customer metadata.</p>
         <table style="border-collapse:collapse;margin:16px 0;">
-          <tr><td style="padding:8px;font-weight:bold;">Payment Intent ID:</td><td style="padding:8px;">${paymentIntent.id}</td></tr>
+          <tr><td style="padding:8px;font-weight:bold;">Payment Intent ID:</td><td style="padding:8px;">${escapeHtml(paymentIntent.id)}</td></tr>
           <tr><td style="padding:8px;font-weight:bold;">Amount Paid:</td><td style="padding:8px;">$${(paymentIntent.amount / 100).toFixed(2)}</td></tr>
           <tr><td style="padding:8px;font-weight:bold;">Missing Fields:</td><td style="padding:8px;">${!metadata.name ? 'Name' : ''}${!metadata.name && !metadata.email ? ', ' : ''}${!metadata.email ? 'Email' : ''}</td></tr>
         </table>
@@ -223,13 +223,13 @@ export async function POST(req: NextRequest) {
           `<h2>Overbooking Detected</h2>
           <p>A student was charged for a class that is already full. <strong>No automatic refund was issued</strong> — please review and handle this manually.</p>
           <table style="border-collapse:collapse;margin:16px 0;">
-            <tr><td style="padding:8px;font-weight:bold;">Student:</td><td style="padding:8px;">${name} (${email})</td></tr>
-            <tr><td style="padding:8px;font-weight:bold;">Phone:</td><td style="padding:8px;">${phone || 'N/A'}</td></tr>
-            <tr><td style="padding:8px;font-weight:bold;">Payment Intent:</td><td style="padding:8px;">${paymentIntent.id}</td></tr>
+            <tr><td style="padding:8px;font-weight:bold;">Student:</td><td style="padding:8px;">${escapeHtml(name)} (${escapeHtml(email)})</td></tr>
+            <tr><td style="padding:8px;font-weight:bold;">Phone:</td><td style="padding:8px;">${escapeHtml(phone || 'N/A')}</td></tr>
+            <tr><td style="padding:8px;font-weight:bold;">Payment Intent:</td><td style="padding:8px;">${escapeHtml(paymentIntent.id)}</td></tr>
             <tr><td style="padding:8px;font-weight:bold;">Amount Paid (Stripe):</td><td style="padding:8px;">$${(paymentIntent.amount / 100).toFixed(2)}</td></tr>
-            <tr><td style="padding:8px;font-weight:bold;">Full Session:</td><td style="padding:8px;">${session.class.name}</td></tr>
-            <tr><td style="padding:8px;font-weight:bold;">Session Date/Time:</td><td style="padding:8px;">${session.date} at ${session.start_time}</td></tr>
-            <tr><td style="padding:8px;font-weight:bold;">Session Price:</td><td style="padding:8px;">$${session.class.price}</td></tr>
+            <tr><td style="padding:8px;font-weight:bold;">Full Session:</td><td style="padding:8px;">${escapeHtml(session.class.name)}</td></tr>
+            <tr><td style="padding:8px;font-weight:bold;">Session Date/Time:</td><td style="padding:8px;">${escapeHtml(session.date)} at ${escapeHtml(session.start_time)}</td></tr>
+            <tr><td style="padding:8px;font-weight:bold;">Session Price:</td><td style="padding:8px;">$${escapeHtml(session.class.price)}</td></tr>
           </table>
           <p>Contact the student and, if appropriate, issue a refund via the Stripe dashboard.</p>`
         ).catch(err => console.error('Failed to send overbooking admin alert:', err));

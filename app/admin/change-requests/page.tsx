@@ -26,7 +26,11 @@ const REQUEST_TYPES = [
 export default function ChangeRequestsPage() {
   const router = useRouter()
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [checkingSession, setCheckingSession] = useState(true)
+  const [loginEmail, setLoginEmail] = useState('info@saveyours.net')
   const [password, setPassword] = useState('')
+  const [loginError, setLoginError] = useState('')
+  const [loggingIn, setLoggingIn] = useState(false)
   const [requests, setRequests] = useState<ChangeRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -39,9 +43,6 @@ export default function ChangeRequestsPage() {
   const [priority, setPriority] = useState('normal')
   const [description, setDescription] = useState('')
 
-  const ADMIN_PASSWORD = 'SaveYours2024!'
-  const SESSION_TIMEOUT = 2 * 60 * 60 * 1000
-
   useEffect(() => {
     checkAuthentication()
   }, [])
@@ -52,37 +53,52 @@ export default function ChangeRequestsPage() {
     return () => clearInterval(interval)
   }, [isAuthenticated])
 
-  const checkAuthentication = () => {
-    const isAdmin = localStorage.getItem('adminAuthenticated')
-    const authTime = localStorage.getItem('adminAuthTime')
-
-    if (isAdmin === 'true' && authTime) {
-      const sessionAge = Date.now() - parseInt(authTime)
-      if (sessionAge > SESSION_TIMEOUT) {
+  const checkAuthentication = async () => {
+    setCheckingSession(true)
+    try {
+      const res = await fetch('/api/admin/session', { cache: 'no-store' })
+      if (res.ok) {
+        localStorage.setItem('adminAuthenticated', 'true')
+        setIsAuthenticated(true)
+        fetchRequests()
+      } else {
         localStorage.removeItem('adminAuthenticated')
         localStorage.removeItem('adminAuthTime')
         setIsAuthenticated(false)
-        toast.info('Session expired. Please login again.')
         setLoading(false)
-      } else {
-        setIsAuthenticated(true)
-        fetchRequests()
       }
-    } else {
+    } catch {
+      setIsAuthenticated(false)
       setLoading(false)
+    } finally {
+      setCheckingSession(false)
     }
   }
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (password === ADMIN_PASSWORD) {
-      localStorage.setItem('adminAuthenticated', 'true')
-      localStorage.setItem('adminAuthTime', Date.now().toString())
-      setIsAuthenticated(true)
-      fetchRequests()
-      toast.success('Login successful')
-    } else {
-      toast.error('Invalid password')
+    setLoginError('')
+    setLoggingIn(true)
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: loginEmail, password }),
+      })
+      if (res.ok) {
+        localStorage.setItem('adminAuthenticated', 'true')
+        setPassword('')
+        setIsAuthenticated(true)
+        fetchRequests()
+        toast.success('Login successful')
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setLoginError(data?.error || 'Invalid credentials')
+      }
+    } catch {
+      setLoginError('Login failed. Please try again.')
+    } finally {
+      setLoggingIn(false)
     }
   }
 
@@ -187,6 +203,14 @@ export default function ChangeRequestsPage() {
     )
   }
 
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    )
+  }
+
   // Login Screen
   if (!isAuthenticated) {
     return (
@@ -195,18 +219,31 @@ export default function ChangeRequestsPage() {
           <h1 className="text-2xl font-bold mb-6">Admin Login</h1>
           <form onSubmit={handleLogin}>
             <input
+              type="email"
+              placeholder="Email"
+              value={loginEmail}
+              onChange={(e) => setLoginEmail(e.target.value)}
+              className="w-full px-4 py-2 border rounded-lg mb-3"
+              required
+            />
+            <input
               type="password"
-              placeholder="Enter admin password"
+              placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-2 border rounded-lg mb-4"
               autoFocus
+              required
             />
+            {loginError && (
+              <p className="text-sm text-red-600 mb-3">{loginError}</p>
+            )}
             <button
               type="submit"
-              className="w-full bg-primary-600 text-white py-2 rounded-lg hover:bg-primary-700"
+              disabled={loggingIn}
+              className="w-full bg-primary-600 text-white py-2 rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              Login
+              {loggingIn ? 'Signing in…' : 'Login'}
             </button>
           </form>
         </div>

@@ -1,7 +1,12 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe-server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEnrollmentConfirmation, sendVoucherEmail } from '@/lib/email'
+import { requireAdmin, AdminUnauthorizedError } from '@/lib/admin-auth'
+
+function unauthorized() {
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+}
 
 // Mirrors the formatTime helper in app/api/enrollment/create/route.ts.
 // The voucher/confirmation emails render the time string as-is (see
@@ -16,7 +21,13 @@ function formatTime(time: string): string {
   return `${hour12}:${minutes} ${ampm}`;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  try {
+    await requireAdmin(req)
+  } catch (e) {
+    if (e instanceof AdminUnauthorizedError) return unauthorized()
+    throw e
+  }
   try {
     const payments = await stripe.paymentIntents.list({
       limit: 100,
@@ -90,7 +101,13 @@ type ReconcileNotification = {
   warning?: string
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  try {
+    await requireAdmin(req)
+  } catch (e) {
+    if (e instanceof AdminUnauthorizedError) return unauthorized()
+    throw e
+  }
   try {
     const body = await req.json()
     const { paymentIntentId, sendEmails: sendEmailsRaw } = body as {

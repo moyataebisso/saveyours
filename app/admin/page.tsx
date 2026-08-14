@@ -22,7 +22,12 @@ function formatTime(time: string): string {
 export default function AdminDashboard() {
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [loginEmail, setLoginEmail] = useState('info@saveyours.net');
   const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [loggingIn, setLoggingIn] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'sessions' | 'enrollments' | 'inquiries'>('overview');
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [sessions, setSessions] = useState<ClassSession[]>([]);
@@ -50,54 +55,69 @@ export default function AdminDashboard() {
     warning?: string;
   }>>([]);
 
-  // Hardcoded password
-  const ADMIN_PASSWORD = 'SaveYours2024!';
-  const SESSION_TIMEOUT = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
-
+  // Session lives in an HttpOnly cookie set by /api/admin/login. This flag is
+  // a non-authoritative UI hint only; the real auth check is /api/admin/session,
+  // which we call on mount to decide whether to render the dashboard or the
+  // login form.
   useEffect(() => {
     checkAuthentication();
   }, []);
 
-  const checkAuthentication = () => {
-    const isAdmin = localStorage.getItem('adminAuthenticated');
-    const authTime = localStorage.getItem('adminAuthTime');
-    
-    if (isAdmin === 'true' && authTime) {
-      const sessionAge = Date.now() - parseInt(authTime);
-      
-      if (sessionAge > SESSION_TIMEOUT) {
-        console.log('Admin session expired');
+  const checkAuthentication = async () => {
+    setCheckingSession(true);
+    try {
+      const res = await fetch('/api/admin/session', { cache: 'no-store' });
+      if (res.ok) {
+        localStorage.setItem('adminAuthenticated', 'true');
+        setIsAuthenticated(true);
+        loadData();
+      } else {
         localStorage.removeItem('adminAuthenticated');
         localStorage.removeItem('adminAuthTime');
         setIsAuthenticated(false);
-        toast.info('Session expired. Please login again.');
-      } else {
-        const remainingTime = SESSION_TIMEOUT - sessionAge;
-        const remainingMinutes = Math.floor(remainingTime / 60000);
-        console.log(`Admin session valid. ${remainingMinutes} minutes remaining.`);
+        setLoading(false);
+      }
+    } catch {
+      setIsAuthenticated(false);
+      setLoading(false);
+    } finally {
+      setCheckingSession(false);
+    }
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError('');
+    setLoggingIn(true);
+    try {
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: loginEmail, password }),
+      });
+      if (res.ok) {
+        localStorage.setItem('adminAuthenticated', 'true');
+        setPassword('');
         setIsAuthenticated(true);
         loadData();
+        toast.success('Login successful');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setLoginError(data?.error || 'Invalid credentials');
       }
-    } else {
-      setLoading(false);
+    } catch {
+      setLoginError('Login failed. Please try again.');
+    } finally {
+      setLoggingIn(false);
     }
   };
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (password === ADMIN_PASSWORD) {
-      localStorage.setItem('adminAuthenticated', 'true');
-      localStorage.setItem('adminAuthTime', Date.now().toString());
-      setIsAuthenticated(true);
-      loadData();
-      toast.success('Login successful - session expires in 2 hours');
-    } else {
-      toast.error('Invalid password');
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/admin/logout', { method: 'POST' });
+    } catch {
+      // Server logout is best-effort; the important part is clearing the client hint.
     }
-  };
-
-  const handleLogout = () => {
     localStorage.removeItem('adminAuthenticated');
     localStorage.removeItem('adminAuthTime');
     setIsAuthenticated(false);
@@ -289,6 +309,15 @@ export default function AdminDashboard() {
     }
   };
 
+  // Loading state while probing the session cookie on mount.
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
   // Login Screen
   if (!isAuthenticated) {
     return (
@@ -297,22 +326,35 @@ export default function AdminDashboard() {
           <h1 className="text-2xl font-bold mb-6">Admin Login</h1>
           <form onSubmit={handleLogin}>
             <input
+              type="email"
+              placeholder="Email"
+              value={loginEmail}
+              onChange={(e) => setLoginEmail(e.target.value)}
+              className="w-full px-4 py-2 border rounded-lg mb-3"
+              required
+            />
+            <input
               type="password"
-              placeholder="Enter admin password"
+              placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-2 border rounded-lg mb-4"
               autoFocus
+              required
             />
+            {loginError && (
+              <p className="text-sm text-red-600 mb-3">{loginError}</p>
+            )}
             <button
               type="submit"
-              className="w-full bg-primary-600 text-white py-2 rounded-lg hover:bg-primary-700"
+              disabled={loggingIn}
+              className="w-full bg-primary-600 text-white py-2 rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              Login
+              {loggingIn ? 'Signing in…' : 'Login'}
             </button>
           </form>
           <p className="text-xs text-gray-500 mt-4 text-center">
-            Session will expire after 2 hours of login
+            Session expires after 2 hours
           </p>
         </div>
       </div>
@@ -410,6 +452,12 @@ export default function AdminDashboard() {
             >
               <MessageSquare className="w-4 h-4" />
               Change Requests
+            </button>
+            <button
+              onClick={() => setShowChangePassword(true)}
+              className="text-gray-600 hover:text-gray-900"
+            >
+              Change Password
             </button>
             <button
               onClick={handleLogout}
@@ -828,6 +876,20 @@ export default function AdminDashboard() {
         loadData();
       }} />}
 
+      {/* Change Password Modal */}
+      {showChangePassword && (
+        <ChangePasswordModal
+          onClose={() => setShowChangePassword(false)}
+          onSuccess={async () => {
+            setShowChangePassword(false);
+            toast.success('Password changed. Please log in again.');
+            localStorage.removeItem('adminAuthenticated');
+            localStorage.removeItem('adminAuthTime');
+            setIsAuthenticated(false);
+          }}
+        />
+      )}
+
       {/* Reconcile Modal */}
       {showReconcile && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -981,6 +1043,126 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Change Password Modal Component
+function ChangePasswordModal({
+  onClose,
+  onSuccess,
+}: {
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (newPassword !== confirmPassword) {
+      setError('New passwords do not match');
+      return;
+    }
+    if (newPassword.length < 12) {
+      setError('New password must be at least 12 characters');
+      return;
+    }
+    if (/saveyours/i.test(newPassword)) {
+      setError('New password must not contain "saveyours"');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/admin/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      if (res.ok) {
+        onSuccess();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data?.error || 'Failed to change password');
+      }
+    } catch {
+      setError('Failed to change password');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
+        <div className="flex justify-between items-center p-6 border-b">
+          <h2 className="text-xl font-bold">Change Password</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Current Password</label>
+            <input
+              type="password"
+              required
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg"
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">New Password</label>
+            <input
+              type="password"
+              required
+              minLength={12}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              At least 12 characters; must not contain &ldquo;saveyours&rdquo;.
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Confirm New Password</label>
+            <input
+              type="password"
+              required
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg"
+            />
+          </div>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <div className="flex gap-2 pt-2">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="flex-1 bg-primary-600 text-white py-2 rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {submitting ? 'Saving…' : 'Change Password'}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={submitting}
+              className="flex-1 bg-gray-200 text-gray-800 py-2 rounded-lg hover:bg-gray-300"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

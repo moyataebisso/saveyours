@@ -1,41 +1,52 @@
-// app/api/admin/login/route.ts
-import { NextResponse } from 'next/server';
-
-// Simple authentication without bcrypt for now
-const ADMIN_CREDENTIALS = {
-  email: 'info@saveyours.net',
-  password: 'SaveYours2024!',
-  name: 'Meea Mosissa',
-  id: '07ade784-c858-4f23-8f69-d9791c69d656' // From your database
-};
+import { NextResponse } from 'next/server'
+import bcrypt from 'bcryptjs'
+import { supabaseAdmin } from '@/lib/supabase-admin'
+import {
+  issueAdminSession,
+  ADMIN_COOKIE_NAME,
+  ADMIN_COOKIE_OPTIONS,
+} from '@/lib/admin-auth'
 
 export async function POST(request: Request) {
   try {
-    const { email, password } = await request.json();
-    
-    console.log('Login attempt for:', email);
+    const body = await request.json().catch(() => ({}))
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+    const password = typeof body.password === 'string' ? body.password : ''
 
-    // Simple direct check
-    if (email === ADMIN_CREDENTIALS.email && password === ADMIN_CREDENTIALS.password) {
-      console.log('Login successful');
-      return NextResponse.json({
-        id: ADMIN_CREDENTIALS.id,
-        email: ADMIN_CREDENTIALS.email,
-        name: ADMIN_CREDENTIALS.name,
-        role: 'admin'
-      });
+    if (!email || !password) {
+      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
     }
 
-    console.log('Invalid credentials');
-    return NextResponse.json(
-      { error: 'Invalid credentials' },
-      { status: 401 }
-    );
-  } catch (error) {
-    console.error('Login error:', error);
-    return NextResponse.json(
-      { error: 'Server error' },
-      { status: 500 }
-    );
+    const { data: user, error } = await supabaseAdmin
+      .from('users')
+      .select('id, email, full_name, role, password_hash')
+      .eq('email', email)
+      .eq('role', 'admin')
+      .maybeSingle()
+
+    if (error || !user || !user.password_hash) {
+      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
+    }
+
+    const passwordMatch = await bcrypt.compare(password, user.password_hash)
+    if (!passwordMatch) {
+      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
+    }
+
+    const session = issueAdminSession({ adminId: user.id, email: user.email })
+    const res = NextResponse.json({
+      id: user.id,
+      email: user.email,
+      name: user.full_name,
+      role: user.role,
+    })
+    res.cookies.set(ADMIN_COOKIE_NAME, session.value, {
+      ...ADMIN_COOKIE_OPTIONS,
+      maxAge: session.maxAge,
+    })
+    return res
+  } catch (err) {
+    console.error('[ADMIN_LOGIN]', err)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }

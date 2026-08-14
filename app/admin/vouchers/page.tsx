@@ -18,6 +18,8 @@ export default function VouchersPage() {
   const [vouchers, setVouchers] = useState<VoucherLink[]>([]);
   const [voucherUrls, setVoucherUrls] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [voucherLoadError, setVoucherLoadError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
 
   // CRUD state
@@ -103,9 +105,12 @@ export default function VouchersPage() {
 
   const loadSessions = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await fetch('/api/admin/sessions?status=scheduled,full', { cache: 'no-store' });
       if (!res.ok) {
+        setSessions([]);
+        setLoadError(`Failed to load sessions (HTTP ${res.status}). Voucher assignments unavailable until this reloads.`);
         toast.error('Failed to load sessions');
       } else {
         const data = await res.json();
@@ -113,15 +118,20 @@ export default function VouchersPage() {
       }
     } catch (error) {
       console.error('Error:', error);
+      setSessions([]);
+      setLoadError('Failed to load sessions (network error). Voucher assignments unavailable until this reloads.');
       toast.error('Failed to load data');
     }
     setLoading(false);
   };
 
   const loadVouchers = async (sessionId: string) => {
+    setVoucherLoadError(null);
     try {
       const res = await fetch(`/api/admin/vouchers?sessionId=${encodeURIComponent(sessionId)}`, { cache: 'no-store' });
       if (!res.ok) {
+        setVouchers([]);
+        setVoucherLoadError(`Failed to load vouchers for this session (HTTP ${res.status}).`);
         toast.error('Failed to load vouchers');
       } else {
         const data = await res.json();
@@ -129,6 +139,8 @@ export default function VouchersPage() {
       }
     } catch (error) {
       console.error('Error:', error);
+      setVouchers([]);
+      setVoucherLoadError('Failed to load vouchers (network error).');
       toast.error('Failed to load vouchers');
     }
   };
@@ -408,6 +420,40 @@ export default function VouchersPage() {
     );
   }
 
+  // Sessions failed to load → block the whole page. Without a session list
+  // the admin can't select anything, so degrading to an empty dropdown would
+  // only confuse.
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="bg-white shadow-sm border-b">
+          <div className="container mx-auto px-4 py-4 flex items-center gap-4">
+            <button
+              onClick={() => router.push('/admin')}
+              className="text-gray-600 hover:text-gray-900 flex items-center gap-2"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              Back to Dashboard
+            </button>
+            <h1 className="text-2xl font-bold">Voucher Management</h1>
+          </div>
+        </div>
+        <div className="container mx-auto px-4 py-16">
+          <div className="max-w-2xl mx-auto bg-white border-l-4 border-red-500 rounded-lg shadow p-8">
+            <h2 className="text-xl font-bold text-red-700 mb-3">Voucher Management unavailable</h2>
+            <p className="text-gray-700 mb-6">{loadError}</p>
+            <button
+              onClick={loadSessions}
+              className="bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const selectedSession = getSelectedSession();
   const availableCount = vouchers.filter(v => v.status === 'available').length;
   const assignedCount = vouchers.filter(v => v.status === 'assigned').length;
@@ -458,7 +504,20 @@ export default function VouchersPage() {
           )}
         </div>
 
-        {selectedSessionId && (
+        {selectedSessionId && voucherLoadError && (
+          <div className="bg-white border-l-4 border-red-500 rounded-lg shadow p-6 mb-6">
+            <h3 className="font-bold text-red-700 mb-2">Voucher list unavailable</h3>
+            <p className="text-gray-700 mb-4">{voucherLoadError}</p>
+            <button
+              onClick={() => loadVouchers(selectedSessionId)}
+              className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 text-sm"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {selectedSessionId && !voucherLoadError && (
           <div className="grid lg:grid-cols-3 gap-6">
             {/* Stats */}
             <div className="lg:col-span-3 grid grid-cols-3 gap-4">

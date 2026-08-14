@@ -41,6 +41,10 @@ export default function AdminDashboard() {
   const [classes, setClasses] = useState<Class[]>([]);
   const [stats, setStats] = useState<OverviewStats | null>(null);
   const [loading, setLoading] = useState(true);
+  // If the overview fetch fails we render a full-screen error state instead
+  // of the dashboard — Meea must never see $0 revenue simply because the API
+  // 500'd. This state is what gates that behavior.
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showAddSession, setShowAddSession] = useState(false);
   const [editingSession, setEditingSession] = useState<ClassSession | null>(null);
   const [cancellingSession, setCancellingSession] = useState<string | null>(null);
@@ -134,27 +138,59 @@ export default function AdminDashboard() {
   // Single-shot dashboard load. /api/admin/overview returns lists (capped)
   // plus SQL-computed stats. All post-mutation reloads also hit this route
   // — one round trip keeps the four tabs and the header cards consistent.
+  //
+  // On ANY failure (5xx, network, malformed body), state is wiped and
+  // loadError is set. The render path then blocks with an error screen
+  // instead of showing zeros/empty tables. Do not soften this — silent
+  // partial data on a payments dashboard is worse than a loud failure.
   const loadData = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await fetch('/api/admin/overview', { cache: 'no-store' });
       if (!res.ok) {
         if (res.status === 401) {
           localStorage.removeItem('adminAuthenticated');
           setIsAuthenticated(false);
+          setLoading(false);
+          return;
         }
-        toast.error('Failed to load data');
-      } else {
-        const data = await res.json();
-        setSessions(data.sessions || []);
-        setEnrollments(data.enrollments || []);
-        setInquiries(data.inquiries || []);
-        setClasses(data.classes || []);
-        setStats(data.stats || null);
+        setStats(null);
+        setSessions([]);
+        setEnrollments([]);
+        setInquiries([]);
+        setClasses([]);
+        setLoadError(`Dashboard failed to load (HTTP ${res.status}). Do not trust any numbers shown elsewhere until this reloads.`);
+        toast.error('Failed to load dashboard data');
+        setLoading(false);
+        return;
       }
+      const data = await res.json();
+      if (!data || typeof data !== 'object' || !data.stats) {
+        setStats(null);
+        setSessions([]);
+        setEnrollments([]);
+        setInquiries([]);
+        setClasses([]);
+        setLoadError('Dashboard returned unexpected data. Retry, or contact support.');
+        toast.error('Failed to load dashboard data');
+        setLoading(false);
+        return;
+      }
+      setSessions(data.sessions || []);
+      setEnrollments(data.enrollments || []);
+      setInquiries(data.inquiries || []);
+      setClasses(data.classes || []);
+      setStats(data.stats);
     } catch (error) {
       console.error('Error loading data:', error);
-      toast.error('Failed to load data');
+      setStats(null);
+      setSessions([]);
+      setEnrollments([]);
+      setInquiries([]);
+      setClasses([]);
+      setLoadError('Dashboard failed to load (network error). Check your connection and retry.');
+      toast.error('Failed to load dashboard data');
     }
     setLoading(false);
   };
@@ -338,6 +374,44 @@ export default function AdminDashboard() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
+  // Full-screen error state on load failure. Replaces the dashboard
+  // entirely — no stats cards, no tabs, no tables. Never render zeros
+  // that look like real numbers when the data is actually missing.
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="bg-white shadow-sm border-b">
+          <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+            <button
+              onClick={handleLogout}
+              className="text-gray-600 hover:text-gray-900"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+        <div className="container mx-auto px-4 py-16">
+          <div className="max-w-2xl mx-auto bg-white border-l-4 border-red-500 rounded-lg shadow p-8">
+            <h2 className="text-xl font-bold text-red-700 mb-3">Dashboard unavailable</h2>
+            <p className="text-gray-700 mb-4">{loadError}</p>
+            <p className="text-sm text-gray-600 mb-6">
+              Nothing on this page is being displayed because the data could not be loaded.
+              This is intentional — showing partial or zero values on a payments dashboard
+              would be misleading.
+            </p>
+            <button
+              onClick={loadData}
+              className="bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
       </div>
     );
   }

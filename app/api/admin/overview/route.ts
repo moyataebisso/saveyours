@@ -7,33 +7,31 @@ import {
   ADMIN_SESSIONS_LIMIT,
 } from '@/lib/admin-limits'
 
-// Aggregated dashboard load. One round-trip that returns every list the
-// admin page needs to render plus SQL-computed stats. Granular refresh
-// endpoints exist for post-mutation reloads — this route is for mount only.
+interface DashboardStats {
+  totalEnrollments: number
+  totalRevenue: number
+  activeClassRevenue: number
+  upcomingSessions: number
+  newInquiries: number
+}
+
+// Aggregated dashboard load. Every stat is computed inside admin_dashboard_stats()
+// (a Postgres function — see the SQL migration accompanying this route) because
+// PostgREST rejects .select('col.sum()') aggregation at the server level with
+// PGRST123 "Use of aggregate functions is not allowed".
+//
+// Granular refresh endpoints exist for post-mutation reloads — this route is
+// for mount only.
 export function GET(req: NextRequest) {
   return guarded(req, async () => {
-    // Local YYYY-MM-DD, not toISOString (UTC would flip the day after ~7pm
-    // Central — known off-by-one bug documented in app/admin/page.tsx).
-    const now = new Date()
-    const todayStr =
-      `${now.getFullYear()}-` +
-      `${String(now.getMonth() + 1).padStart(2, '0')}-` +
-      `${String(now.getDate()).padStart(2, '0')}`
-
-    // Every stat is a discrete server-side query. The revenue sums use
-    // PostgREST's .sum() aggregate so we never pull row-level amount_paid
-    // data across the wire just to add it up.
     const [
+      statsRes,
       sessionsRes,
       classesRes,
       enrollmentsRes,
       inquiriesRes,
-      totalEnrollmentsCountRes,
-      totalRevenueRes,
-      activeSessionIdRes,
-      upcomingSessionsCountRes,
-      newInquiriesCountRes,
     ] = await Promise.all([
+      supabaseAdmin.rpc('admin_dashboard_stats'),
       supabaseAdmin
         .from('class_sessions')
         .select('*, class:classes(*)')
@@ -50,75 +48,69 @@ export function GET(req: NextRequest) {
         .select('*')
         .order('created_at', { ascending: false })
         .limit(ADMIN_INQUIRIES_LIMIT),
-      supabaseAdmin
-        .from('enrollments')
-        .select('*', { count: 'exact', head: true })
-        .eq('payment_status', 'paid'),
-      supabaseAdmin
-        .from('enrollments')
-        .select('amount_paid.sum()')
-        .eq('payment_status', 'paid'),
-      supabaseAdmin
-        .from('class_sessions')
-        .select('id')
-        .gte('date', todayStr)
-        .neq('status', 'cancelled'),
-      supabaseAdmin
-        .from('class_sessions')
-        .select('*', { count: 'exact', head: true })
-        .gte('date', todayStr)
-        .eq('status', 'scheduled'),
-      supabaseAdmin
-        .from('inquiries')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'new'),
     ])
 
-    for (const r of [
-      sessionsRes,
-      classesRes,
-      enrollmentsRes,
-      inquiriesRes,
-      totalRevenueRes,
-      activeSessionIdRes,
-    ]) {
-      if (r.error) {
-        console.error('[ADMIN_OVERVIEW] Query error:', r.error)
-        return NextResponse.json({ error: 'Failed to load overview' }, { status: 500 })
+    // If ANY query failed, refuse to return a partial payload. The client
+    // must never see a mix of real lists and zeroed stats (or vice versa)
+    // — that would make Meea think her business had no revenue.
+    const errors: { source: string; error: unknown }[] = []
+    if (statsRes.error) errors.push({ source: 'stats', error: statsRes.error })
+    if (sessionsRes.error) errors.push({ source: 'sessions', error: sessionsRes.error })
+    if (classesRes.error) errors.push({ source: 'classes', error: classesRes.error })
+    if (enrollmentsRes.error) errors.push({ source: 'enrollments', error: enrollmentsRes.error })
+    if (inquiriesRes.error) errors.push({ source: 'inquiries', error: inquiriesRes.error })
+
+    if (errors.length > 0) {
+      for (const e of errors) {
+        console.error(`[ADMIN_OVERVIEW] ${e.source} query error:`, e.error)
       }
+      return NextResponse.json(
+        { error: 'Failed to load overview', sources: errors.map((e) => e.source) },
+        { status: 500 }
+      )
     }
 
-    // Active-class revenue: sum only over enrollments whose session is
-    // both upcoming and not cancelled. Requires the list of active session
-    // ids first, then a second aggregation filtered by .in().
-    const activeIds = (activeSessionIdRes.data ?? []).map((s) => s.id)
-    let activeClassRevenue = 0
-    if (activeIds.length > 0) {
-      const { data: activeRevData, error: activeRevErr } = await supabaseAdmin
-        .from('enrollments')
-        .select('amount_paid.sum()')
-        .eq('payment_status', 'paid')
-        .neq('status', 'cancelled')
-        .in('session_id', activeIds)
-      if (activeRevErr) {
-        console.error('[ADMIN_OVERVIEW] Active revenue query error:', activeRevErr)
-        return NextResponse.json({ error: 'Failed to load overview' }, { status: 500 })
-      }
-      const firstRow = Array.isArray(activeRevData) ? activeRevData[0] : null
-      activeClassRevenue = Number(firstRow?.sum ?? 0)
+    // PostgREST serializes Postgres `numeric` as a JSON string to preserve
+    // precision. sum(amount_paid) is numeric — so totalRevenue and
+    // activeClassRevenue arrive here as strings like "1234.56". Coerce every
+    // stat to a JS number before returning, and refuse to serve the response
+    // if ANY of the five is not a finite number. Prevents "$1234.56" (string
+    // toLocaleString is a no-op) rendering in the dashboard.
+    const rawStats = statsRes.data as Record<string, unknown> | null
+    if (!rawStats || typeof rawStats !== 'object') {
+      console.error('[ADMIN_OVERVIEW] stats RPC returned null or non-object:', statsRes.data)
+      return NextResponse.json({ error: 'Stats query returned unexpected shape' }, { status: 500 })
     }
 
-    const totalRevenueRow = Array.isArray(totalRevenueRes.data) ? totalRevenueRes.data[0] : null
-    const totalRevenue = Number(totalRevenueRow?.sum ?? 0)
+    const toFiniteNumber = (v: unknown): number => {
+      if (typeof v === 'number') return Number.isFinite(v) ? v : NaN
+      if (typeof v === 'string') {
+        const n = Number(v)
+        return Number.isFinite(n) ? n : NaN
+      }
+      return NaN
+    }
+
+    const stats: DashboardStats = {
+      totalEnrollments: toFiniteNumber(rawStats.totalEnrollments),
+      totalRevenue: toFiniteNumber(rawStats.totalRevenue),
+      activeClassRevenue: toFiniteNumber(rawStats.activeClassRevenue),
+      upcomingSessions: toFiniteNumber(rawStats.upcomingSessions),
+      newInquiries: toFiniteNumber(rawStats.newInquiries),
+    }
+
+    for (const [k, v] of Object.entries(stats)) {
+      if (!Number.isFinite(v)) {
+        console.error(`[ADMIN_OVERVIEW] stats field "${k}" is not a finite number:`, rawStats[k], 'raw payload:', rawStats)
+        return NextResponse.json(
+          { error: `Stats field "${k}" was not a finite number` },
+          { status: 500 }
+        )
+      }
+    }
 
     return NextResponse.json({
-      stats: {
-        totalEnrollments: totalEnrollmentsCountRes.count ?? 0,
-        totalRevenue,
-        activeClassRevenue,
-        upcomingSessions: upcomingSessionsCountRes.count ?? 0,
-        newInquiries: newInquiriesCountRes.count ?? 0,
-      },
+      stats,
       sessions: sessionsRes.data ?? [],
       classes: classesRes.data ?? [],
       enrollments: enrollmentsRes.data ?? [],

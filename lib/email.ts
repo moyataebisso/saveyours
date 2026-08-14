@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer'
+import { BLENDED_EXPLAINER_SENTENCES } from './blended-copy'
 
 // Shared HTML escaper for every email template in the repo. Any user-supplied
 // or DB-supplied value interpolated into an email body must go through this —
@@ -102,8 +103,7 @@ export async function sendEnrollmentConfirmation(
           
           <div class="important">
             <strong>IMPORTANT: Online Learning Required</strong><br>
-            This course requires online learning to be completed BEFORE the classroom portion. 
-            You will receive a separate email within 24 hours with instructions to access the online course.
+            ${BLENDED_EXPLAINER_SENTENCES[0]} ${BLENDED_EXPLAINER_SENTENCES[1]}
             <br><br>
             Please allow up to 24 hours to receive this email. Check your spam folder if you don't see it.
           </div>

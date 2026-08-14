@@ -8,6 +8,8 @@ import { getStripe } from '@/lib/stripe';
 import { toast } from '@/components/ui/Toaster';
 import { Trash2, X } from 'lucide-react';
 import type { ClassSessionWithClass } from '@/types';
+import { BLENDED_CART_LINE, isBlendedClass } from '@/lib/blended-copy';
+import { REFUND_POLICY } from '@/lib/refund-policy';
 
 interface CheckoutFormProps {
   sessions: ClassSessionWithClass[];
@@ -243,26 +245,66 @@ function CheckoutForm({ sessions, totalAmount, paymentIntentId, onPaymentIntentR
         </p>
       </div>
 
-      {/* Terms and Conditions Checkbox */}
-      <div className="border-t pt-4">
+      {/* Refund Policy scrollable box + Terms checkbox */}
+      <div className="border-t pt-4 space-y-4">
+        <div>
+          <h3 className="text-sm font-semibold text-[#1B2A4A] mb-2">
+            Refund Policy
+          </h3>
+          <div
+            className="border border-gray-300 rounded-md p-3 sm:p-4 max-h-40 overflow-y-auto bg-white text-sm text-gray-700 space-y-3"
+            tabIndex={0}
+            role="region"
+            aria-label="Refund policy — scroll to read"
+          >
+            <p>{REFUND_POLICY.intro}</p>
+            {REFUND_POLICY.sections.map((section) => (
+              <div key={section.heading}>
+                <p className="font-semibold text-[#1B2A4A]">{section.heading}</p>
+                {section.bullets && (
+                  <ul className="list-disc list-inside space-y-1 mt-1">
+                    {section.bullets.map((b, i) => (
+                      <li key={i}>{b}</li>
+                    ))}
+                  </ul>
+                )}
+                {section.paragraph && <p className="mt-1">{section.paragraph}</p>}
+              </div>
+            ))}
+            <p className="text-xs text-gray-500">
+              Full policy at{' '}
+              <a
+                href="/policies/refunds"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-gray-700"
+                onClick={(e) => e.stopPropagation()}
+              >
+                /policies/refunds
+              </a>
+              .
+            </p>
+          </div>
+        </div>
+
         <label className="flex items-start gap-3 cursor-pointer group">
           <input
             type="checkbox"
             checked={agreeToTerms}
             onChange={(e) => setAgreeToTerms(e.target.checked)}
-            className="mt-1 w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500 focus:ring-2"
+            className="mt-1 w-4 h-4 text-[#CC2936] border-gray-300 rounded focus:ring-[#CC2936] focus:ring-2"
             required
           />
           <span className="text-sm text-gray-700 select-none">
-            By paying for this class, you agree to all of our{' '}
+            I have read the refund policy above and agree to the{' '}
             <a
               href="/policies"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary-600 underline hover:text-primary-700 font-medium"
+              className="text-[#CC2936] underline hover:opacity-80 font-medium"
               onClick={(e) => e.stopPropagation()}
             >
-              terms and conditions
+              Terms and Conditions
             </a>
             .
           </span>
@@ -475,6 +517,11 @@ export default function CartPage() {
                       <p className="text-sm text-gray-600">
                         {item.class.audience === 'healthcare' ? 'Healthcare' : 'General Public'}
                       </p>
+                      {isBlendedClass(item.class) && (
+                        <p className="text-sm font-medium text-[#1B2A4A] mt-1">
+                          {BLENDED_CART_LINE}
+                        </p>
+                      )}
                       {fullSessions.has(item.id) && (
                         <p className="text-sm font-semibold text-red-600 mt-1">This class is now full</p>
                       )}

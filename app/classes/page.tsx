@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Calendar, Clock, MapPin, ShoppingCart, Filter, List, Users, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, Clock, MapPin, ShoppingCart, Filter, List, Users, ChevronLeft, ChevronRight, Info } from 'lucide-react';
 import { toast } from '@/components/ui/Toaster';
 import { supabaseHelpers } from '@/lib/supabase';
+import { BLENDED_LISTING_SENTENCES, isBlendedClass } from '@/lib/blended-copy';
 
 interface ClassSession {
   id: string;
@@ -213,6 +214,20 @@ export default function ClassesPage() {
 
       <section className="bg-white border-b sticky top-[73px] z-30">
         <div className="container-custom py-4">
+          <div
+            className="mb-4 p-3 sm:p-4 rounded-md border border-[#1B2A4A]/20 bg-[#1B2A4A]/5 flex items-start gap-3"
+            role="note"
+            aria-label="Blended-class format explainer"
+          >
+            <Info className="w-5 h-5 flex-shrink-0 text-[#1B2A4A] mt-0.5" aria-hidden="true" />
+            <div className="text-sm sm:text-base text-[#1B2A4A] leading-snug">
+              <p className="font-semibold mb-1">Some classes are blended.</p>
+              <p>
+                {BLENDED_LISTING_SENTENCES[0]} {BLENDED_LISTING_SENTENCES[1]}
+              </p>
+            </div>
+          </div>
+
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="flex items-center bg-gray-100 rounded-lg p-1">
               <button
@@ -260,13 +275,24 @@ export default function ClassesPage() {
                   <div className="flex items-start justify-between mb-4">
                     <div>
                       <h3 className="font-semibold text-lg">{session.class?.name}</h3>
-                      <span className={`inline-block mt-2 px-3 py-1 rounded-full text-xs font-medium ${
-                        session.class?.audience === 'healthcare' 
-                          ? 'bg-primary-100 text-primary-700' 
-                          : 'bg-gray-100 text-gray-700'
-                      }`}>
-                        {session.class?.audience === 'healthcare' ? 'Healthcare' : 'General Public'}
-                      </span>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
+                          session.class?.audience === 'healthcare'
+                            ? 'bg-primary-100 text-primary-700'
+                            : 'bg-gray-100 text-gray-700'
+                        }`}>
+                          {session.class?.audience === 'healthcare' ? 'Healthcare' : 'General Public'}
+                        </span>
+                        {isBlendedClass(session.class) ? (
+                          <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-[#1B2A4A] text-white">
+                            Blended
+                          </span>
+                        ) : (
+                          <span className="inline-block px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                            In-person
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <p className="text-2xl font-bold text-primary-600">
                       ${session.class?.price}

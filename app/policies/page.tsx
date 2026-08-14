@@ -1,42 +1,39 @@
+import { REFUND_POLICY } from '@/lib/refund-policy';
+
 export default function PoliciesPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <section className="container-custom py-12">
         <h1 className="text-4xl font-bold mb-8">Policies</h1>
-        
+
         <div className="card p-8 mb-8">
           <h2 className="text-2xl font-bold mb-6">Cancellation & Refund Policy</h2>
-          
-          <p className="text-gray-600 mb-4">
-            At SaveYours LLC, we value your commitment to learning lifesaving skills. 
-            To ensure fairness and accommodate all participants, we have the following 
-            cancellation and rescheduling policy:
-          </p>
 
-          <h3 className="font-semibold text-lg mb-3">Cancellations</h3>
-          <ul className="list-disc list-inside space-y-2 text-gray-600 mb-6">
-            <li>A full refund will be issued if you notify us within 24 hours of registration.</li>
-            <li>After 24 hours, course fees are non-refundable.</li>
-          </ul>
+          <p className="text-gray-600 mb-4">{REFUND_POLICY.intro}</p>
 
-          <h3 className="font-semibold text-lg mb-3">Rescheduling</h3>
-          <ul className="list-disc list-inside space-y-2 text-gray-600 mb-6">
-            <li>If you are unable to attend your scheduled class, you may reschedule at no additional cost, 
-                provided you email us at info@saveyours.net.</li>
-            <li>Rescheduling requests must be submitted at least 24 hours before your scheduled class.</li>
-            <li>Requests made less than 24 hours before the class, or failure to attend without notice 
-                (no-show), will result in forfeiture of your course fee.</li>
-          </ul>
-
-          <h3 className="font-semibold text-lg mb-3">Attendance Policy</h3>
-          <p className="text-gray-600 mb-6">
-            Students must arrive ON-TIME for their scheduled in-person session. Failure to show up within 15 minutes of the scheduled in-person session will result in the forfeiture of your position in that class and your course fee.
-          </p>
+          {REFUND_POLICY.sections.map((section) => (
+            <div key={section.heading}>
+              <h3 className="font-semibold text-lg mb-3">{section.heading}</h3>
+              {section.bullets && (
+                <ul className="list-disc list-inside space-y-2 text-gray-600 mb-6">
+                  {section.bullets.map((b, i) => (
+                    <li key={i}>{b}</li>
+                  ))}
+                </ul>
+              )}
+              {section.paragraph && (
+                <p className="text-gray-600 mb-6">{section.paragraph}</p>
+              )}
+            </div>
+          ))}
 
           <h3 className="font-semibold text-lg mb-3">Contact</h3>
           <p className="text-gray-600">
             For cancellations or rescheduling, please email{' '}
-            <a href="mailto:info@saveyours.net" className="text-primary-600 hover:underline">info@saveyours.net</a>.
+            <a href={`mailto:${REFUND_POLICY.contactEmail}`} className="text-primary-600 hover:underline">
+              {REFUND_POLICY.contactEmail}
+            </a>
+            .
           </p>
         </div>
 

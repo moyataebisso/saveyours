@@ -65,6 +65,7 @@ export default function Header() {
     { href: '/', label: 'Home' },
     { href: '/classes', label: 'Classes' },
     { href: '/about', label: 'About' },
+    { href: '/faq', label: 'FAQ' },
     { href: '/contact', label: 'Contact' },
   ];
 

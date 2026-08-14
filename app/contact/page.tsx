@@ -67,9 +67,16 @@ export default function ContactPage() {
       <section className="bg-gradient-to-br from-primary-50 to-beige-50 py-16">
         <div className="container-custom">
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6 text-center">Get in Touch</h1>
-          <p className="text-xl text-gray-600 text-center max-w-3xl mx-auto">
-            Ready to schedule training for your team or have questions about our courses? 
+          <p className="text-xl text-gray-600 text-center max-w-3xl mx-auto mb-4">
+            Ready to schedule training for your team or have questions about our courses?
             We are here to help!
+          </p>
+          <p className="text-sm sm:text-base text-gray-600 text-center max-w-3xl mx-auto">
+            Check our{' '}
+            <a href="/faq" className="text-[#CC2936] underline hover:opacity-80 font-medium">
+              FAQ
+            </a>
+            {' '}— you may find your answer faster.
           </p>
         </div>
       </section>

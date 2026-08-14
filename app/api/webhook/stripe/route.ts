@@ -36,7 +36,9 @@ export async function POST(req: NextRequest) {
     const metadata = paymentIntent.metadata
 
     const name = metadata.name || metadata.customer_name || 'Unknown - check Stripe'
-    const email = metadata.email || metadata.receipt_email || paymentIntent.receipt_email || 'unknown@saveyours.net'
+    // Lowercase to match how /api/enrollment/create stores it — keeps
+    // /api/student/enrollments' .eq() lookups working under either code path.
+    const email = (metadata.email || metadata.receipt_email || paymentIntent.receipt_email || 'unknown@saveyours.net').trim().toLowerCase()
     const phone = metadata.phone || ''
 
     if (!metadata.name || !metadata.email) {

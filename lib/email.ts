@@ -150,6 +150,56 @@ export async function sendEnrollmentConfirmation(
   }
 }
 
+export async function sendStudentOtpEmail(to: string, code: string) {
+  const safeCode = escapeHtml(code)
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background-color: #DC2626; color: white; padding: 20px; text-align: center; }
+        .content { padding: 20px; background-color: #f9f9f9; }
+        .code { font-size: 32px; font-weight: bold; letter-spacing: 6px; text-align: center; padding: 20px; background: #fff; border: 1px solid #ddd; border-radius: 5px; margin: 20px 0; }
+        .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header"><h1>SaveYours Verification</h1></div>
+        <div class="content">
+          <p>Enter this code on the sign-in page to view your enrollments:</p>
+          <p class="code">${safeCode}</p>
+          <p>This code expires in 10 minutes.</p>
+          <p>If you didn&rsquo;t request this, you can safely ignore this email.</p>
+          <div class="footer">
+            <p>Questions? <a href="mailto:info@saveyours.net">info@saveyours.net</a></p>
+            <p>SaveYours LLC | Bloomington, MN</p>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `
+
+  const mailOptions = {
+    from: '"SaveYours Training" <info@saveyours.net>',
+    to,
+    subject: 'Your SaveYours verification code',
+    html: htmlContent,
+  }
+
+  try {
+    const info = await getTransporter().sendMail(mailOptions)
+    console.log('Student OTP email sent:', info.messageId)
+    return { success: true, messageId: info.messageId }
+  } catch (error) {
+    console.error('Student OTP email error:', error)
+    return { success: false, error }
+  }
+}
+
 export async function sendAdminAlert(
   subject: string,
   htmlContent: string

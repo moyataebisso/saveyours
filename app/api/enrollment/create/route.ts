@@ -25,11 +25,17 @@ export async function POST(req: NextRequest) {
     const {
       sessionIds,
       sessionId,
-      email,
+      email: rawEmail,
       name,
       phone,
       paymentIntentId,
     } = await req.json()
+
+    // Normalize the email to lowercase before storing. The student session
+    // (lib/student-auth.ts) verifies with lowercase emails, and .eq()
+    // matches on the /api/student/enrollments query only find rows stored
+    // that way. Historical rows were lowercased by a one-time migration.
+    const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : rawEmail
 
     // Accept either a single sessionId (legacy) or an array of sessionIds
     const ids: string[] = Array.isArray(sessionIds) && sessionIds.length > 0

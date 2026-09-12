@@ -51,7 +51,7 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
       {
         question: 'How long is my certification good for?',
         answer:
-          `Two years from the date you complete your class. We'll email you a reminder before it expires.`,
+          `Two years from the date you complete your in-person class. Mark the two-year anniversary on your calendar and register for a refresher class before that date so your certification doesn't lapse.`,
       },
     ],
   },
@@ -126,7 +126,7 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
       {
         question: 'How do I renew?',
         answer:
-          `Register for the same class again before your two years are up. We'll send a reminder as your expiration approaches.`,
+          `Register for the same class again before your two years are up. Renewing before the expiration date keeps your certification continuous — if it lapses, you'll need to complete the class as a new student.`,
       },
     ],
   },

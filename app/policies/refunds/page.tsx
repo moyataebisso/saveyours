@@ -4,15 +4,20 @@ import { REFUND_POLICY } from '@/lib/refund-policy';
 import { LAST_UPDATED } from '@/lib/last-updated';
 
 export const metadata: Metadata = {
-  title: 'Cancellation & Refund Policy | SaveYours',
+  title: {
+    absolute: 'Cancellation & Refund Policy | SaveYours',
+  },
   description:
     'SaveYours cancellation and refund policy for CPR, AED, BLS, and First Aid classes — cancellations, rescheduling, and no-shows explained.',
   alternates: { canonical: '/policies/refunds' },
   openGraph: {
-    url: 'https://www.saveyours.net/policies/refunds',
+    url: '/policies/refunds',
     title: 'Cancellation & Refund Policy | SaveYours',
     description:
       'SaveYours cancellation and refund policy for CPR, AED, BLS, and First Aid classes — cancellations, rescheduling, and no-shows explained.',
+  },
+  twitter: {
+    title: 'Cancellation & Refund Policy | SaveYours',
   },
 };
 

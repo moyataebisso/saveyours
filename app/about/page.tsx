@@ -2,15 +2,20 @@ import type { Metadata } from 'next';
 import { Award, Heart, Users, Target, Map, Shield } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'About SaveYours — Red Cross Certified CPR & First Aid Training',
+  title: {
+    absolute: 'About SaveYours — Red Cross Certified CPR & First Aid Training',
+  },
   description:
     'SaveYours LLC is a Red Cross authorized training provider based in Bloomington, MN, teaching CPR, AED, BLS, and First Aid across the Twin Cities metro.',
   alternates: { canonical: '/about' },
   openGraph: {
-    url: 'https://www.saveyours.net/about',
+    url: '/about',
     title: 'About SaveYours — Red Cross Certified CPR & First Aid Training',
     description:
       'SaveYours LLC is a Red Cross authorized training provider based in Bloomington, MN, teaching CPR, AED, BLS, and First Aid across the Twin Cities metro.',
+  },
+  twitter: {
+    title: 'About SaveYours — Red Cross Certified CPR & First Aid Training',
   },
 };
 

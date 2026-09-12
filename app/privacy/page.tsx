@@ -2,9 +2,21 @@ import type { Metadata } from 'next';
 import { PRIVACY_POLICY } from '@/lib/privacy-policy';
 
 export const metadata: Metadata = {
-  title: 'Privacy Policy — SaveYours',
+  title: {
+    absolute: 'Privacy Policy — SaveYours',
+  },
   description:
     'How SaveYours LLC collects, uses, and protects information from students who register for CPR, BLS, and First Aid classes.',
+  alternates: { canonical: '/privacy' },
+  openGraph: {
+    url: '/privacy',
+    title: 'Privacy Policy — SaveYours',
+    description:
+      'How SaveYours LLC collects, uses, and protects information from students who register for CPR, BLS, and First Aid classes.',
+  },
+  twitter: {
+    title: 'Privacy Policy — SaveYours',
+  },
 };
 
 export default function PrivacyPage() {

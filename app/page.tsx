@@ -3,17 +3,25 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Heart, Zap, Home, Target, Award, Users, MapPin, GraduationCap, Activity, CheckCircle, Clock, Play, AlertCircle } from 'lucide-react';
 
+// title.absolute prevents root layout's " | SaveYours" template from doubling
+// the brand — this page's title already contains "SaveYours". openGraph.url
+// is path-relative so metadataBase resolves it correctly.
 export const metadata: Metadata = {
-  title: 'CPR, BLS & First Aid Classes in Bloomington, MN | SaveYours',
+  title: {
+    absolute: 'CPR, BLS & First Aid Classes in Bloomington, MN | SaveYours',
+  },
   description:
     'Red Cross certified CPR/AED/First Aid and BLS classes in Bloomington, MN, plus on-site group training across the Twin Cities metro.',
   alternates: { canonical: '/' },
   openGraph: {
-    url: 'https://www.saveyours.net/',
+    url: '/',
     title: 'CPR, BLS & First Aid Classes in Bloomington, MN | SaveYours',
     description:
       'Red Cross certified CPR/AED/First Aid and BLS classes in Bloomington, MN, plus on-site group training across the Twin Cities metro.',
     images: [{ url: '/images/hero-cpr-training.png', width: 1200, height: 630, alt: 'SaveYours CPR training' }],
+  },
+  twitter: {
+    title: 'CPR, BLS & First Aid Classes in Bloomington, MN | SaveYours',
   },
 };
 

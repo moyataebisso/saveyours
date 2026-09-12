@@ -3,10 +3,24 @@ import Link from 'next/link';
 import { FAQ_CATEGORIES, FAQ_STILL_HAVE_QUESTIONS } from '@/lib/faq-content';
 import { LAST_UPDATED } from '@/lib/last-updated';
 
+// Title uses absolute so the root layout's " | SaveYours" template doesn't
+// double the brand — this page's title already contains "SaveYours".
 export const metadata: Metadata = {
-  title: 'FAQ — SaveYours CPR & First Aid Training',
+  title: {
+    absolute: 'FAQ — SaveYours CPR & First Aid Training',
+  },
   description:
     'Answers to common questions about our BLS, CPR/AED/First Aid, and mobile training classes — pricing, blended-course logistics, refunds, and certification.',
+  alternates: { canonical: '/faq' },
+  openGraph: {
+    url: '/faq',
+    title: 'FAQ — SaveYours CPR & First Aid Training',
+    description:
+      'Answers to common questions about our BLS, CPR/AED/First Aid, and mobile training classes — pricing, blended-course logistics, refunds, and certification.',
+  },
+  twitter: {
+    title: 'FAQ — SaveYours CPR & First Aid Training',
+  },
 };
 
 // FAQPage schema for search engines. Every question and answer is included

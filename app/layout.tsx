@@ -40,6 +40,31 @@ export const metadata: Metadata = {
   },
 };
 
+// Only fields we can confirm from lib/privacy-policy.ts and the Footer are
+// included. No telephone, hours, rating, or price range — inventing any of
+// those would be worse than leaving them out.
+const localBusinessJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'LocalBusiness',
+  name: 'SaveYours LLC',
+  url: 'https://www.saveyours.net',
+  email: 'info@saveyours.net',
+  address: {
+    '@type': 'PostalAddress',
+    streetAddress: '10800 Lyndale Ave S Suite 310',
+    addressLocality: 'Bloomington',
+    addressRegion: 'MN',
+    postalCode: '55420',
+    addressCountry: 'US',
+  },
+  areaServed: [
+    { '@type': 'City', name: 'Minneapolis' },
+    { '@type': 'City', name: 'Saint Paul' },
+    { '@type': 'AdministrativeArea', name: 'Twin Cities metro' },
+    { '@type': 'State', name: 'Minnesota' },
+  ],
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -48,6 +73,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessJsonLd) }}
+        />
         <Header />
         <main className="min-h-screen">{children}</main>
         <Footer />

@@ -208,7 +208,7 @@ export default function ClassesPage() {
       <section className="bg-white border-b">
         <div className="container-custom py-8">
           <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Available Classes</h1>
-          <p className="text-gray-600">Select from our full range of American Red Cross certified courses: BLS for healthcare providers, Adult and Pediatric First Aid/CPR/AED for non-healthcare workers, and on-site mobile training tailored to your group needs.</p>
+          <p className="text-gray-600">Every class here is American Red Cross certified. BLS is for healthcare providers. Adult and Pediatric First Aid/CPR/AED is for non-healthcare workers. On-site mobile training brings a class to your team, tailored to your group&rsquo;s needs.</p>
         </div>
       </section>
 

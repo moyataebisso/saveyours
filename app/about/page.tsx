@@ -21,8 +21,7 @@ export default function AboutPage() {
         <div className="container-custom">
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6 text-center">About SaveYours</h1>
           <p className="text-xl text-gray-600 text-center max-w-3xl mx-auto">
-            Founded with a mission to make life-saving education universally accessible, 
-            empowering individuals to respond effectively in emergencies.
+            SaveYours makes life-saving education accessible to everyone. Our classes give ordinary people the training and the confidence to respond when an emergency happens.
           </p>
         </div>
       </section>
@@ -34,15 +33,10 @@ export default function AboutPage() {
               <h2 className="text-3xl font-bold text-gray-900 mb-6">Meet Our Founder</h2>
               <h3 className="text-xl font-semibold mb-4 text-primary-600">Meea Mosissa</h3>
               <p className="text-gray-600 mb-4">
-                Meea Mosissa, founder of SaveYours, first received his NREMT certification in 2022, 
-                and in doing so learned valuable techniques and knowledge that he feels everyone, 
-                regardless of their background, should know.
+                Meea Mosissa founded SaveYours after earning his NREMT certification in 2022. The techniques he learned during that training convinced him that everyone should have the same knowledge, regardless of background.
               </p>
               <p className="text-gray-600 mb-4">
-                His training not only deepened his understanding of emergency care, but also highlighted 
-                the importance of early intervention in saving lives. This experience sparked his mission 
-                to make life-saving education universally accessible, empowering individuals to respond 
-                effectively in emergencies.
+                His training deepened his understanding of emergency care and made clear how much early intervention matters. That experience shaped SaveYours' mission: make life-saving education accessible so more people can respond when it matters most.
               </p>
               <div className="flex items-center space-x-2 text-primary-600">
                 <Award className="w-5 h-5" />
@@ -64,39 +58,36 @@ export default function AboutPage() {
 
       <section className="py-16 bg-beige-50">
         <div className="container-custom">
-          <h2 className="text-3xl font-bold text-gray-900 text-center mb-12">Our Training Approach</h2>
-          
+          <h2 className="text-3xl font-bold text-gray-900 text-center mb-12">How SaveYours trains students</h2>
+
           <div className="grid md:grid-cols-3 gap-8">
             <div className="text-center">
               <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Target className="w-10 h-10 text-primary-600" />
               </div>
-              <h3 className="font-semibold text-lg mb-3">Blended Learning</h3>
+              <h3 className="font-semibold text-lg mb-3">Blended online plus in-person</h3>
               <p className="text-gray-600">
-                Complete theoretical knowledge online at your own pace, then demonstrate 
-                practical skills in person for the best learning experience.
+                Blended classes have two parts. You finish the online coursework at your own pace, then come in person to demonstrate the skills.
               </p>
             </div>
-            
+
             <div className="text-center">
               <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Users className="w-10 h-10 text-primary-600" />
               </div>
-              <h3 className="font-semibold text-lg mb-3">Small Class Sizes</h3>
+              <h3 className="font-semibold text-lg mb-3">Small class sizes — 12 students max</h3>
               <p className="text-gray-600">
-                With a maximum of 12 students per session, you will receive personalized 
-                attention and plenty of hands-on practice time.
+                Every session is capped at 12 students. Smaller classes mean personalized attention and more hands-on practice time on the manikins.
               </p>
             </div>
-            
+
             <div className="text-center">
               <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Heart className="w-10 h-10 text-primary-600" />
               </div>
-              <h3 className="font-semibold text-lg mb-3">Real-World Focus</h3>
+              <h3 className="font-semibold text-lg mb-3">Real-world scenarios</h3>
               <p className="text-gray-600">
-                Our training emphasizes practical, real-world scenarios to ensure you are 
-                prepared for actual emergency situations.
+                Every skill is practiced in a realistic emergency scenario, not memorized from a slide. You leave prepared for what an actual call looks like.
               </p>
             </div>
           </div>

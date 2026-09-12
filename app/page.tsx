@@ -1,6 +1,21 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Heart, Zap, Home, Target, Award, Users, MapPin, GraduationCap, Activity, CheckCircle, Clock, Play, AlertCircle } from 'lucide-react';
+
+export const metadata: Metadata = {
+  title: 'CPR, BLS & First Aid Classes in Bloomington, MN | SaveYours',
+  description:
+    'Red Cross certified CPR/AED/First Aid and BLS classes in Bloomington, MN, plus on-site group training across the Twin Cities metro.',
+  alternates: { canonical: '/' },
+  openGraph: {
+    url: 'https://www.saveyours.net/',
+    title: 'CPR, BLS & First Aid Classes in Bloomington, MN | SaveYours',
+    description:
+      'Red Cross certified CPR/AED/First Aid and BLS classes in Bloomington, MN, plus on-site group training across the Twin Cities metro.',
+    images: [{ url: '/images/hero-cpr-training.png', width: 1200, height: 630, alt: 'SaveYours CPR training' }],
+  },
+};
 
 export default function HomePage() {
   return (

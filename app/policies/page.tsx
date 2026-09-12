@@ -1,4 +1,18 @@
+import type { Metadata } from 'next';
 import { REFUND_POLICY } from '@/lib/refund-policy';
+
+export const metadata: Metadata = {
+  title: 'Policies — Cancellation, Refunds & Terms | SaveYours',
+  description:
+    'SaveYours cancellation and refund policy, plus terms and conditions for CPR, AED, BLS, and First Aid training in Bloomington, MN.',
+  alternates: { canonical: '/policies' },
+  openGraph: {
+    url: 'https://www.saveyours.net/policies',
+    title: 'Policies — Cancellation, Refunds & Terms | SaveYours',
+    description:
+      'SaveYours cancellation and refund policy, plus terms and conditions for CPR, AED, BLS, and First Aid training in Bloomington, MN.',
+  },
+};
 
 export default function PoliciesPage() {
   return (

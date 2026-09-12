@@ -1,5 +1,19 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { REFUND_POLICY } from '@/lib/refund-policy';
+
+export const metadata: Metadata = {
+  title: 'Cancellation & Refund Policy | SaveYours',
+  description:
+    'SaveYours cancellation and refund policy for CPR, AED, BLS, and First Aid classes — cancellations, rescheduling, and no-shows explained.',
+  alternates: { canonical: '/policies/refunds' },
+  openGraph: {
+    url: 'https://www.saveyours.net/policies/refunds',
+    title: 'Cancellation & Refund Policy | SaveYours',
+    description:
+      'SaveYours cancellation and refund policy for CPR, AED, BLS, and First Aid classes — cancellations, rescheduling, and no-shows explained.',
+  },
+};
 
 export default function RefundsPage() {
   return (

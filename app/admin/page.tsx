@@ -35,6 +35,7 @@ export default function AdminDashboard() {
   const [loggingIn, setLoggingIn] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'sessions' | 'enrollments' | 'inquiries'>('overview');
+  const [enrollmentFilter, setEnrollmentFilter] = useState<'active' | 'completed' | 'cancelled' | 'all'>('active');
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [sessions, setSessions] = useState<ClassSession[]>([]);
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
@@ -668,9 +669,64 @@ export default function AdminDashboard() {
               </div>
             )}
 
-            {activeTab === 'enrollments' && (
+            {activeTab === 'enrollments' && (() => {
+              // Session-cancelled rows with an active enrollment status still
+              // rendered as normal here before this change — invisible to the
+              // admin. The Cancelled filter surfaces them alongside truly
+              // cancelled enrollments, and the badge in the Date cell marks
+              // the difference at a glance.
+              const isSessionCancelled = (e: Enrollment) => e.session?.status === 'cancelled';
+              const isActive = (e: Enrollment) =>
+                (e.status === 'pending' || e.status === 'confirmed') && !isSessionCancelled(e);
+              const isCompleted = (e: Enrollment) => e.status === 'completed';
+              const isCancelled = (e: Enrollment) => e.status === 'cancelled' || isSessionCancelled(e);
+
+              const counts = {
+                active: enrollments.filter(isActive).length,
+                completed: enrollments.filter(isCompleted).length,
+                cancelled: enrollments.filter(isCancelled).length,
+                all: enrollments.length,
+              };
+
+              const filtered = enrollments.filter(e => {
+                if (enrollmentFilter === 'active') return isActive(e);
+                if (enrollmentFilter === 'completed') return isCompleted(e);
+                if (enrollmentFilter === 'cancelled') return isCancelled(e);
+                return true;
+              });
+
+              const filterButtons: { key: typeof enrollmentFilter; label: string; count: number }[] = [
+                { key: 'active', label: 'Active', count: counts.active },
+                { key: 'completed', label: 'Completed', count: counts.completed },
+                { key: 'cancelled', label: 'Cancelled', count: counts.cancelled },
+                { key: 'all', label: 'All', count: counts.all },
+              ];
+
+              return (
               <div>
                 <h2 className="text-xl font-semibold mb-4">Enrollments</h2>
+                <div className="mb-4 flex flex-wrap items-center gap-2">
+                  {filterButtons.map(({ key, label, count }) => {
+                    const selected = enrollmentFilter === key;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => setEnrollmentFilter(key)}
+                        className={`px-3 py-1.5 rounded text-sm font-medium border transition-colors ${
+                          selected
+                            ? 'bg-primary-600 text-white border-primary-600'
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        }`}
+                        aria-pressed={selected}
+                      >
+                        {label}{' '}
+                        <span className={selected ? 'text-white/80' : 'text-gray-500'}>
+                          ({count})
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-gray-50">
@@ -685,89 +741,18 @@ export default function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {enrollments
-                        .filter(enrollment => enrollment.status !== 'cancelled')
-                        .map(enrollment => (
-                        <tr key={enrollment.id} className="border-b">
-                          <td className="px-4 py-2">
-                            {enrollment.guest_name || enrollment.user?.full_name || <span className="text-gray-400 italic">Unknown</span>}
-                          </td>
-                          <td className="px-4 py-2">
-                            {enrollment.guest_email || enrollment.user?.email || <span className="text-gray-400 italic">No email</span>}
-                          </td>
-                          <td className="px-4 py-2">
-                            {enrollment.session?.class?.name || <span className="text-gray-400 italic">Unknown class</span>}
-                          </td>
-                          <td className="px-4 py-2">
-                            {enrollment.session?.date ? new Date(enrollment.session.date + 'T00:00:00').toLocaleDateString() : <span className="text-gray-400 italic">No date</span>}
-                          </td>
-                          <td className="px-4 py-2">
-                            {enrollment.session?.start_time ? formatTime(enrollment.session.start_time) : <span className="text-gray-400 italic">—</span>}
-                          </td>
-                          <td className="px-4 py-2">
-                            <span className={`px-2 py-1 rounded text-xs ${
-                              enrollment.status === 'completed'
-                                ? 'bg-green-100 text-green-800'
-                                : enrollment.status === 'confirmed'
-                                ? 'bg-blue-100 text-blue-800'
-                                : enrollment.status === 'pending'
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-gray-100 text-gray-800'
-                            }`}>
-                              {enrollment.status}
-                            </span>
-                          </td>
-                          <td className="px-4 py-2">
-                            <div className="flex items-center gap-2">
-                              {enrollment.status === 'confirmed' || enrollment.status === 'pending' ? (
-                                <>
-                                  <button
-                                    onClick={() => markEnrollmentComplete(enrollment.id)}
-                                    className="text-green-600 hover:text-green-800"
-                                  >
-                                    Mark Complete
-                                  </button>
-                                  <button
-                                    onClick={() => removeEnrollment(enrollment.id, enrollment.session_id, enrollment.guest_name || enrollment.user?.full_name || 'this student')}
-                                    className="text-red-500 hover:text-red-700"
-                                    title="Remove student from class"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </>
-                              ) : enrollment.status === 'completed' ? (
-                                <span className="text-green-600">✓ Completed</span>
-                              ) : null}
-                            </div>
+                      {filtered.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="px-4 py-6 text-center text-gray-500 italic">
+                            No enrollments match this filter.
                           </td>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Cancelled Enrollments - Collapsible Section with Restore */}
-                {enrollments.filter(e => e.status === 'cancelled').length > 0 && (
-                  <details className="mt-6 border rounded-lg">
-                    <summary className="px-4 py-3 cursor-pointer bg-gray-50 hover:bg-gray-100 font-medium text-gray-700">
-                      🗑️ Cancelled Enrollments ({enrollments.filter(e => e.status === 'cancelled').length})
-                    </summary>
-                    <div className="p-4">
-                      <table className="w-full">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-4 py-2 text-left">Student</th>
-                            <th className="px-4 py-2 text-left">Email</th>
-                            <th className="px-4 py-2 text-left">Class</th>
-                            <th className="px-4 py-2 text-left">Date</th>
-                            <th className="px-4 py-2 text-left">Time</th>
-                            <th className="px-4 py-2 text-left">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {enrollments
-                            .filter(enrollment => enrollment.status === 'cancelled')
-                            .map(enrollment => (
+                      ) : (
+                        filtered.map(enrollment => {
+                          const sessionCancelled = isSessionCancelled(enrollment);
+                          const isEnrollmentActive =
+                            enrollment.status === 'confirmed' || enrollment.status === 'pending';
+                          return (
                             <tr key={enrollment.id} className="border-b">
                               <td className="px-4 py-2">
                                 {enrollment.guest_name || enrollment.user?.full_name || <span className="text-gray-400 italic">Unknown</span>}
@@ -779,29 +764,77 @@ export default function AdminDashboard() {
                                 {enrollment.session?.class?.name || <span className="text-gray-400 italic">Unknown class</span>}
                               </td>
                               <td className="px-4 py-2">
-                                {enrollment.session?.date ? new Date(enrollment.session.date + 'T00:00:00').toLocaleDateString() : <span className="text-gray-400 italic">No date</span>}
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span>
+                                    {enrollment.session?.date ? new Date(enrollment.session.date + 'T00:00:00').toLocaleDateString() : <span className="text-gray-400 italic">No date</span>}
+                                  </span>
+                                  {sessionCancelled && (
+                                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                                      Class cancelled
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                               <td className="px-4 py-2">
                                 {enrollment.session?.start_time ? formatTime(enrollment.session.start_time) : <span className="text-gray-400 italic">—</span>}
                               </td>
                               <td className="px-4 py-2">
-                                <button
-                                  onClick={() => restoreEnrollment(enrollment.id, enrollment.session_id)}
-                                  className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                                  title="Restore this enrollment"
-                                >
-                                  🔄 Restore
-                                </button>
+                                <span className={`px-2 py-1 rounded text-xs ${
+                                  enrollment.status === 'completed'
+                                    ? 'bg-green-100 text-green-800'
+                                    : enrollment.status === 'confirmed'
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : enrollment.status === 'pending'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : 'bg-gray-100 text-gray-800'
+                                }`}>
+                                  {enrollment.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2">
+                                <div className="flex items-center gap-3 flex-wrap">
+                                  {isEnrollmentActive && (
+                                    <>
+                                      <button
+                                        onClick={() => markEnrollmentComplete(enrollment.id)}
+                                        className="text-green-600 hover:text-green-800 text-sm font-medium"
+                                      >
+                                        Mark Complete
+                                      </button>
+                                      <button
+                                        onClick={() => removeEnrollment(enrollment.id, enrollment.session_id, enrollment.guest_name || enrollment.user?.full_name || 'this student')}
+                                        className="inline-flex items-center gap-1 text-red-500 hover:text-red-700 text-sm font-medium"
+                                        title="Removes this student from the roster and frees their seat."
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                        Remove from roster
+                                      </button>
+                                    </>
+                                  )}
+                                  {enrollment.status === 'completed' && (
+                                    <span className="text-green-600">✓ Completed</span>
+                                  )}
+                                  {enrollment.status === 'cancelled' && (
+                                    <button
+                                      onClick={() => restoreEnrollment(enrollment.id, enrollment.session_id)}
+                                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                      title="Restore this enrollment"
+                                    >
+                                      🔄 Restore
+                                    </button>
+                                  )}
+                                </div>
                               </td>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </details>
-                )}
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            )}
+              );
+            })()}
 
             {activeTab === 'inquiries' && (
               <div>

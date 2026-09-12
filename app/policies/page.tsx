@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { REFUND_POLICY } from '@/lib/refund-policy';
+import { LAST_UPDATED } from '@/lib/last-updated';
 
 export const metadata: Metadata = {
   title: 'Policies — Cancellation, Refunds & Terms | SaveYours',
@@ -18,7 +19,8 @@ export default function PoliciesPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <section className="container-custom py-12">
-        <h1 className="text-4xl font-bold mb-8">Policies</h1>
+        <h1 className="text-4xl font-bold mb-2">Policies</h1>
+        <p className="text-sm text-gray-500 mb-8">Last updated: {LAST_UPDATED}</p>
 
         <div className="card p-8 mb-8">
           <h2 className="text-2xl font-bold mb-6">Cancellation & Refund Policy</h2>

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { FAQ_CATEGORIES, FAQ_STILL_HAVE_QUESTIONS } from '@/lib/faq-content';
+import { LAST_UPDATED } from '@/lib/last-updated';
 
 export const metadata: Metadata = {
   title: 'FAQ — SaveYours CPR & First Aid Training',
@@ -55,6 +56,7 @@ export default function FaqPage() {
             </a>
             .
           </p>
+          <p className="mt-3 text-sm text-gray-500">Last updated: {LAST_UPDATED}</p>
         </div>
       </section>
 

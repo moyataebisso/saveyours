@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { REFUND_POLICY } from '@/lib/refund-policy';
+import { LAST_UPDATED } from '@/lib/last-updated';
 
 export const metadata: Metadata = {
   title: 'Cancellation & Refund Policy | SaveYours',
@@ -28,7 +29,8 @@ export default function RefundsPage() {
           </Link>
         </div>
 
-        <h1 className="text-3xl sm:text-4xl font-bold mb-6 sm:mb-8">Cancellation &amp; Refund Policy</h1>
+        <h1 className="text-3xl sm:text-4xl font-bold mb-2 sm:mb-3">Cancellation &amp; Refund Policy</h1>
+        <p className="text-sm text-gray-500 mb-6 sm:mb-8">Last updated: {LAST_UPDATED}</p>
 
         <div className="card p-6 sm:p-8">
           <p className="text-gray-700 mb-6">{REFUND_POLICY.intro}</p>

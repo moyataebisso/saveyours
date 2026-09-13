@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Heart, Zap, Home, Target, Award, Users, MapPin, GraduationCap, Activity, CheckCircle, Clock, Play, AlertCircle } from 'lucide-react';
+import { CLASS_INFO, getClassBySlug } from '@/lib/class-info';
 
 // title.absolute prevents root layout's " | SaveYours" template from doubling
 // the brand — this page's title already contains "SaveYours". openGraph.url
@@ -119,10 +120,9 @@ export default function HomePage() {
             {/* BLS Card with Image */}
             <div className="group card overflow-visible">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-600 to-primary-800 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-300"></div>
-              
-              {/* Service Image with badge */}
+
               <div className="relative h-48 -mx-6 -mt-6 mb-6 rounded-t-lg overflow-hidden">
-                <Image 
+                <Image
                   src="/images/bls-training.png"
                   alt="BLS Training for Healthcare"
                   fill
@@ -132,7 +132,6 @@ export default function HomePage() {
                   priority
                   unoptimized
                 />
-                {/* Badge positioned bottom right with 32px spacing */}
                 <div className="absolute bottom-4 right-8 bg-red-600 text-white px-3 py-1.5 rounded-full text-sm font-semibold shadow-lg z-10">
                   Healthcare Pro
                 </div>
@@ -144,27 +143,26 @@ export default function HomePage() {
                 </div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Basic Life Support</h3>
                 <p className="text-gray-500 text-sm mb-4">For Healthcare Professionals</p>
-                <div className="text-4xl font-bold text-primary-600 mb-4">$75</div>
+                <div className="text-4xl font-bold text-primary-600 mb-4">${getClassBySlug('bls')!.price}</div>
                 <p className="text-gray-600 mb-6">
-                  BLS certification for healthcare providers. Learn critical life-saving skills 
+                  BLS certification for healthcare providers. Learn critical life-saving skills
                   including high-quality CPR and AED use.
                 </p>
-                <Link href="/classes" className="text-primary-600 font-semibold inline-flex items-center hover:gap-3 gap-2 transition-all">
-                  See classes
+                <Link href="/classes/bls" className="text-primary-600 font-semibold inline-flex items-center hover:gap-3 gap-2 transition-all">
+                  See BLS classes
                   <span>→</span>
                 </Link>
               </div>
             </div>
 
-            {/* CPR/AED Card with Image */}
+            {/* Adult and Pediatric First Aid/CPR/AED Card */}
             <div className="group card overflow-visible">
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-600 to-primary-800 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-300"></div>
-              
-              {/* Service Image - SAME HEIGHT AS OTHERS */}
+
               <div className="relative h-48 -mx-6 -mt-6 mb-6 rounded-t-lg overflow-hidden">
-                <Image 
+                <Image
                   src="/images/cpr-aed-training.png"
-                  alt="CPR/AED/First Aid Training"
+                  alt="Adult and Pediatric First Aid/CPR/AED Training"
                   fill
                   className="object-cover object-center"
                   sizes="400px"
@@ -172,7 +170,44 @@ export default function HomePage() {
                   priority
                   unoptimized
                 />
-                {/* Badge positioned bottom right with 32px spacing */}
+                <div className="absolute bottom-4 right-8 bg-blue-600 text-white px-3 py-1.5 rounded-full text-sm font-semibold shadow-lg z-10">
+                  General Public
+                </div>
+              </div>
+
+              <div className="px-6 pb-6">
+                <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                  <Users className="w-8 h-8 text-primary-600" />
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">Adult &amp; Pediatric First Aid/CPR/AED</h3>
+                <p className="text-gray-500 text-sm mb-4">Adults, Children, and Infants</p>
+                <div className="text-4xl font-bold text-primary-600 mb-4">${getClassBySlug('adult-pediatric-first-aid-cpr-aed')!.price}</div>
+                <p className="text-gray-600 mb-6">
+                  For childcare providers, teachers, coaches, camp staff, and parents — anyone
+                  responsible for kids as well as adults.
+                </p>
+                <Link href="/classes/adult-pediatric-first-aid-cpr-aed" className="text-primary-600 font-semibold inline-flex items-center hover:gap-3 gap-2 transition-all">
+                  See class details
+                  <span>→</span>
+                </Link>
+              </div>
+            </div>
+
+            {/* Adult First Aid/CPR/AED Card */}
+            <div className="group card overflow-visible">
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-600 to-primary-800 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-300"></div>
+
+              <div className="relative h-48 -mx-6 -mt-6 mb-6 rounded-t-lg overflow-hidden">
+                <Image
+                  src="/images/cpr-aed-training1.png"
+                  alt="Adult First Aid/CPR/AED Training"
+                  fill
+                  className="object-cover object-center"
+                  sizes="400px"
+                  quality={90}
+                  priority
+                  unoptimized
+                />
                 <div className="absolute bottom-4 right-8 bg-blue-600 text-white px-3 py-1.5 rounded-full text-sm font-semibold shadow-lg z-10">
                   General Public
                 </div>
@@ -182,15 +217,15 @@ export default function HomePage() {
                 <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                   <Zap className="w-8 h-8 text-primary-600" />
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">CPR/AED/First Aid Training</h3>
-                <p className="text-gray-500 text-sm mb-4">For Non-Healthcare Workers</p>
-                <div className="text-4xl font-bold text-primary-600 mb-4">$100</div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">Adult First Aid/CPR/AED</h3>
+                <p className="text-gray-500 text-sm mb-4">Adults Only</p>
+                <div className="text-4xl font-bold text-primary-600 mb-4">${getClassBySlug('adult-first-aid-cpr-aed')!.price}</div>
                 <p className="text-gray-600 mb-6">
-                  Comprehensive CPR and AED training for the general public. Be prepared to 
-                  save lives in emergency situations.
+                  For workplace responders, personal trainers, and anyone whose job requires
+                  CPR without pediatric coverage.
                 </p>
-                <Link href="/classes" className="text-primary-600 font-semibold inline-flex items-center hover:gap-3 gap-2 transition-all">
-                  See classes 
+                <Link href="/classes/adult-first-aid-cpr-aed" className="text-primary-600 font-semibold inline-flex items-center hover:gap-3 gap-2 transition-all">
+                  See class details
                   <span>→</span>
                 </Link>
               </div>

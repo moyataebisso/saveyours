@@ -8,6 +8,7 @@
 
 import { REFUND_POLICY } from './refund-policy'
 import { BLENDED_EXPLAINER_SENTENCES } from './blended-copy'
+import { CLASS_INFO } from './class-info'
 
 export interface FaqItem {
   question: string
@@ -26,6 +27,11 @@ const rescheduleBullets = REFUND_POLICY.sections.find(
   (s) => s.heading === 'Rescheduling'
 )?.bullets ?? []
 
+// Pricing string is composed from CLASS_INFO so the FAQ answer stays in
+// lockstep with the class landing pages and homepage.
+const pricingSentence =
+  CLASS_INFO.map((c) => `${c.displayName} is $${c.price}`).join('. ') + '.'
+
 export const FAQ_CATEGORIES: FaqCategory[] = [
   {
     title: 'Getting Started',
@@ -41,7 +47,7 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
       {
         question: 'How much do classes cost?',
         answer:
-          `BLS is $75. CPR/AED/First Aid is $100. Mobile training for groups is quoted based on group size and location — request a quote through our contact page.`,
+          `${pricingSentence} Mobile training for groups is quoted based on group size and location — request a quote through our contact page.`,
       },
       {
         question: 'Are your certifications accepted by employers and licensing boards?',

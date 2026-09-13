@@ -12,7 +12,7 @@ export interface User {
 export interface Class {
   id: string;
   name: string;
-  type: 'BLS' | 'CPR_AED' | 'First Aid';
+  type: 'BLS' | 'CPR_AED' | 'Adult First Aid/CPR/AED';
   audience: 'healthcare' | 'general';
   price: number;
   duration_online: number;

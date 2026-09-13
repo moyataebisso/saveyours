@@ -37,6 +37,7 @@ export default function AdminDashboard() {
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'sessions' | 'enrollments' | 'inquiries'>('overview');
   const [enrollmentFilter, setEnrollmentFilter] = useState<'active' | 'completed' | 'cancelled' | 'all'>('active');
+  const [sessionFilter, setSessionFilter] = useState<'upcoming' | 'past' | 'cancelled' | 'all'>('upcoming');
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [sessions, setSessions] = useState<ClassSession[]>([]);
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
@@ -615,7 +616,38 @@ export default function AdminDashboard() {
               </div>
             )}
 
-            {activeTab === 'sessions' && (
+            {activeTab === 'sessions' && (() => {
+              // "Today" is computed the same way /classes/[slug]/page.tsx does
+              // (ISO date string, no timezone shenanigans). Past sessions are
+              // still real rows the admin needs occasional access to — the
+              // Past filter surfaces them without polluting the default view.
+              const todayIso = new Date().toISOString().split('T')[0];
+              const isUpcoming = (s: ClassSession) => s.status !== 'cancelled' && s.date >= todayIso;
+              const isPast = (s: ClassSession) => s.status !== 'cancelled' && s.date < todayIso;
+              const isCancelled = (s: ClassSession) => s.status === 'cancelled';
+
+              const counts = {
+                upcoming: sessions.filter(isUpcoming).length,
+                past: sessions.filter(isPast).length,
+                cancelled: sessions.filter(isCancelled).length,
+                all: sessions.length,
+              };
+
+              const filteredSessions = sessions.filter(s => {
+                if (sessionFilter === 'upcoming') return isUpcoming(s);
+                if (sessionFilter === 'past') return isPast(s);
+                if (sessionFilter === 'cancelled') return isCancelled(s);
+                return true;
+              });
+
+              const filterButtons: { key: typeof sessionFilter; label: string; count: number }[] = [
+                { key: 'upcoming', label: 'Upcoming', count: counts.upcoming },
+                { key: 'past', label: 'Past', count: counts.past },
+                { key: 'cancelled', label: 'Cancelled', count: counts.cancelled },
+                { key: 'all', label: 'All', count: counts.all },
+              ];
+
+              return (
               <div>
                 <div className="flex justify-between items-center mb-4">
                   <h2 className="text-xl font-semibold">Class Sessions</h2>
@@ -636,6 +668,28 @@ export default function AdminDashboard() {
                     </button>
                   </div>
                 </div>
+                <div className="mb-4 flex flex-wrap items-center gap-2">
+                  {filterButtons.map(({ key, label, count }) => {
+                    const selected = sessionFilter === key;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => setSessionFilter(key)}
+                        className={`px-3 py-1.5 rounded text-sm font-medium border transition-colors ${
+                          selected
+                            ? 'bg-primary-600 text-white border-primary-600'
+                            : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        }`}
+                        aria-pressed={selected}
+                      >
+                        {label}{' '}
+                        <span className={selected ? 'text-white/80' : 'text-gray-500'}>
+                          ({count})
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-gray-50">
@@ -649,9 +703,14 @@ export default function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {sessions
-                        .filter(session => session.status !== 'cancelled')
-                        .map(session => (
+                      {filteredSessions.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-6 text-center text-gray-500 italic">
+                            No sessions match this filter.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredSessions.map(session => (
                         <tr key={session.id} className="border-b">
                           <td className="px-4 py-2">
                             {new Date(session.date + 'T00:00:00').toLocaleDateString()}
@@ -702,12 +761,14 @@ export default function AdminDashboard() {
                             </div>
                           </td>
                         </tr>
-                      ))}
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
               </div>
-            )}
+              );
+            })()}
 
             {activeTab === 'enrollments' && (() => {
               // Session-cancelled rows with an active enrollment status still

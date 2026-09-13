@@ -46,6 +46,7 @@ export const metadata: Metadata = {
 const localBusinessJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'LocalBusiness',
+  '@id': 'https://www.saveyours.net/#business',
   name: 'SaveYours LLC',
   url: 'https://www.saveyours.net',
   email: 'info@saveyours.net',

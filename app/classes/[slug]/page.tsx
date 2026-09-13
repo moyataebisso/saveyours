@@ -36,11 +36,53 @@ export async function generateMetadata(
   };
 }
 
+const SITE = 'https://www.saveyours.net';
+
 export default async function ClassSlugPage(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params;
   const info = getClassBySlug(slug);
   if (!info) notFound();
-  return <ClassPageClient info={info} />;
+
+  // Course schema — provider references the LocalBusiness in the root layout
+  // by @id rather than duplicating its fields. Any address/name/url change
+  // in the root layout automatically propagates via the reference.
+  const courseJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Course',
+    name: info.displayName,
+    description: info.summary,
+    provider: { '@id': `${SITE}/#business` },
+    offers: {
+      '@type': 'Offer',
+      price: info.price,
+      priceCurrency: 'USD',
+      url: `${SITE}/classes/${info.slug}`,
+    },
+  };
+
+  const breadcrumbJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE}/` },
+      { '@type': 'ListItem', position: 2, name: 'Classes', item: `${SITE}/classes` },
+      { '@type': 'ListItem', position: 3, name: info.displayName, item: `${SITE}/classes/${info.slug}` },
+    ],
+  };
+
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(courseJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
+      <ClassPageClient info={info} />
+    </>
+  );
 }

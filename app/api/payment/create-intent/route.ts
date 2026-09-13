@@ -56,10 +56,18 @@ export async function POST(req: NextRequest) {
     // Load every session referenced and sum server-authoritative prices. Any
     // missing session, missing class, or non-numeric price aborts the entire
     // request rather than silently omitting the item from the total.
+    //
+    // Also selects `status` and `archived_at` for the availability guard
+    // below — a stale cart tab, a race with an admin cancellation, or a
+    // hand-crafted request could otherwise purchase a past/cancelled/archived
+    // session. The public /classes fetch now filters these, but this route
+    // is the last line of defense before the charge.
     const sessionDetails: Array<{
       id: string
       date: string
       start_time: string
+      status: string | null
+      archived_at: string | null
       current_enrollment: number
       max_capacity: number
       class: { name: string; price: number }
@@ -69,7 +77,7 @@ export async function POST(req: NextRequest) {
     for (const id of ids) {
       const { data: session, error } = await supabaseAdmin
         .from('class_sessions')
-        .select('id, date, start_time, current_enrollment, max_capacity, class:classes(name, price)')
+        .select('id, date, start_time, status, archived_at, current_enrollment, max_capacity, class:classes(name, price)')
         .eq('id', id)
         .maybeSingle()
 
@@ -87,11 +95,35 @@ export async function POST(req: NextRequest) {
         id: session.id,
         date: session.date,
         start_time: session.start_time,
+        status: (session as { status?: string | null }).status ?? null,
+        archived_at: (session as { archived_at?: string | null }).archived_at ?? null,
         current_enrollment: session.current_enrollment,
         max_capacity: session.max_capacity,
         class: { name: cls.name, price: cls.price },
       })
       amount += cls.price
+    }
+
+    // Availability guard: reject the whole cart if any session is no longer
+    // purchasable. "Today" matches app/classes/[slug]/page.tsx so all three
+    // surfaces (public list, class landing, checkout) agree on the boundary.
+    const todayIso = new Date().toISOString().split('T')[0]
+    for (const session of sessionDetails) {
+      if (session.status === 'cancelled') {
+        return NextResponse.json({
+          error: `Class "${session.class.name}" has been cancelled and can no longer be purchased.`,
+        }, { status: 400 })
+      }
+      if (session.archived_at) {
+        return NextResponse.json({
+          error: `Class "${session.class.name}" has been archived and can no longer be purchased.`,
+        }, { status: 400 })
+      }
+      if (session.date < todayIso) {
+        return NextResponse.json({
+          error: `Class "${session.class.name}" on ${session.date} has already taken place.`,
+        }, { status: 400 })
+      }
     }
 
     // Capacity check across all sessions before we create a PaymentIntent.

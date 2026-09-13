@@ -305,6 +305,14 @@ export default function ClassesPage() {
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredSessions.map((session) => {
               const detailsSlug = slugForSession(session.class);
+              // Belt-and-suspenders past-date guard. getAvailableSessions now
+              // filters past dates at the query level, so this path fires
+              // only if a session slips through (server clock drift, a stale
+              // client tab that loaded yesterday). Keep the button disabled
+              // rather than trusting the fetch alone.
+              const todayIso = new Date().toISOString().split('T')[0];
+              const isPast = session.date < todayIso;
+              const isFull = session.current_enrollment >= session.max_capacity;
               return (
               <div key={session.id} className="card hover:shadow-xl transition-all">
                 <div className="p-6">
@@ -369,9 +377,11 @@ export default function ClassesPage() {
                   <button
                     onClick={() => addToCart(session)}
                     className="btn btn-primary w-full text-sm"
-                    disabled={session.current_enrollment >= session.max_capacity}
+                    disabled={isFull || isPast}
                   >
-                    {session.current_enrollment >= session.max_capacity ? (
+                    {isPast ? (
+                      'Class ended'
+                    ) : isFull ? (
                       'Class Full'
                     ) : (
                       <>

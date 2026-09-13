@@ -16,8 +16,13 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Database helper functions
 export const supabaseHelpers = {
-  // Get all available class sessions with class details
+  // Get all available class sessions with class details. Only surface
+  // sessions that are safe to buy right now: scheduled, not archived, and
+  // dated today or later. "Today" is the ISO date string, computed the
+  // same way app/classes/[slug]/page.tsx does so both public surfaces
+  // agree on what "past" means.
   async getAvailableSessions() {
+    const todayIso = new Date().toISOString().split('T')[0]
     const { data, error } = await supabase
       .from('class_sessions')
       .select(`
@@ -25,14 +30,16 @@ export const supabaseHelpers = {
         class:classes(*)
       `)
       .eq('status', 'scheduled')
+      .gte('date', todayIso)
+      .is('archived_at', null)
       .order('date', { ascending: true })
-    
+
     if (error) {
       console.error('Error fetching sessions:', error);
     }
-    
+
     console.log('Query returned:', data?.length, 'sessions');
-    
+
     return { data: data as ClassSessionWithClass[] | null, error }
   },
 

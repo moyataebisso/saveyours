@@ -1,10 +1,21 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Calendar, Clock, MapPin, ShoppingCart, Filter, List, Users, ChevronLeft, ChevronRight, Info } from 'lucide-react';
 import { toast } from '@/components/ui/Toaster';
 import { supabaseHelpers } from '@/lib/supabase';
 import { BLENDED_LISTING_SENTENCES, isBlendedClass } from '@/lib/blended-copy';
+import { CLASS_INFO } from '@/lib/class-info';
+
+// Map a joined session's class to a class-info slug for deep linking. Falls
+// back to null so cards without a matching class-info entry render without
+// a link rather than pointing at a 404.
+function slugForSession(cls: { name?: string; type?: string } | undefined): string | null {
+  if (!cls) return null;
+  const match = CLASS_INFO.find(c => c.dbType === cls.type || c.dbName === cls.name);
+  return match?.slug ?? null;
+}
 
 interface ClassSession {
   id: string;
@@ -205,10 +216,33 @@ export default function ClassesPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <nav aria-label="Breadcrumb" className="bg-white border-b">
+        <div className="container-custom py-3">
+          <ol className="flex items-center gap-2 text-sm text-gray-600 flex-wrap">
+            <li><Link href="/" className="hover:text-primary-600 underline underline-offset-2">Home</Link></li>
+            <li aria-hidden="true"><ChevronRight className="w-4 h-4 inline text-gray-400" /></li>
+            <li className="text-gray-900 font-medium" aria-current="page">Classes</li>
+          </ol>
+        </div>
+      </nav>
+
       <section className="bg-white border-b">
         <div className="container-custom py-8">
           <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Available Classes</h1>
           <p className="text-gray-600">Every class here is American Red Cross certified. BLS is for healthcare providers. Adult and Pediatric First Aid/CPR/AED is for non-healthcare workers. On-site mobile training brings a class to your team, tailored to your group&rsquo;s needs.</p>
+
+          <div className="mt-6 flex flex-wrap gap-2">
+            <span className="text-sm text-gray-500 mr-1">Class details:</span>
+            {CLASS_INFO.map(c => (
+              <Link
+                key={c.slug}
+                href={`/classes/${c.slug}`}
+                className="inline-flex items-center px-3 py-1.5 rounded-full text-sm border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 hover:border-primary-600 hover:text-primary-600 transition-colors"
+              >
+                {c.displayName}
+              </Link>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -269,12 +303,22 @@ export default function ClassesPage() {
       <section className="container-custom py-8">
         {viewMode === 'list' ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredSessions.map((session) => (
+            {filteredSessions.map((session) => {
+              const detailsSlug = slugForSession(session.class);
+              return (
               <div key={session.id} className="card hover:shadow-xl transition-all">
                 <div className="p-6">
                   <div className="flex items-start justify-between mb-4">
                     <div>
-                      <h3 className="font-semibold text-lg">{session.class?.name}</h3>
+                      <h3 className="font-semibold text-lg">
+                        {detailsSlug ? (
+                          <Link href={`/classes/${detailsSlug}`} className="hover:text-primary-600 hover:underline">
+                            {session.class?.name}
+                          </Link>
+                        ) : (
+                          session.class?.name
+                        )}
+                      </h3>
                       <div className="flex flex-wrap gap-2 mt-2">
                         <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
                           session.class?.audience === 'healthcare'
@@ -338,7 +382,8 @@ export default function ClassesPage() {
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow-md">

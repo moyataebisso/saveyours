@@ -1,39 +1,22 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Calendar, Clock, MapPin, ShoppingCart, Users, ChevronRight } from 'lucide-react';
 import { toast } from '@/components/ui/Toaster';
-import { supabaseHelpers } from '@/lib/supabase';
 import { BLENDED_EXPLAINER_SENTENCES, isBlendedClass } from '@/lib/blended-copy';
 import type { ClassInfo } from '@/lib/class-info';
 import { ANSWER_PARAGRAPHS } from './answer-paragraph';
+import type { SessionRow } from './session-row';
 
-// Session-card render is duplicated from /classes so both surfaces render
-// identically. Do NOT introduce a second checkout path — addToCart writes
-// to the same localStorage key /classes uses, and the cart page owns the
-// rest of the funnel.
-interface SessionRow {
-  id: string;
-  class_id: string;
-  date: string;
-  start_time: string;
-  end_time: string;
-  location: string;
-  max_capacity: number;
-  current_enrollment: number;
-  status: string;
-  class?: {
-    id: string;
-    name: string;
-    type: string;
-    audience: string;
-    price: number;
-    duration_online: number;
-    duration_skills: number;
-    description: string;
-  };
-}
+// Session cards mirror the /classes render so both surfaces look identical.
+// Do NOT introduce a second checkout path — addToCart writes to the same
+// localStorage key /classes uses, and the cart page owns the rest of the
+// funnel.
+//
+// Sessions arrive pre-filtered from the server component (this class's
+// dbType/dbName, scheduled, date >= today). We render them directly; no
+// client-side fetch, no loading state — the empty-state message needs to
+// appear in the server HTML for AI crawlers.
 
 function formatTime(time: string): string {
   if (!time) return '';
@@ -44,29 +27,13 @@ function formatTime(time: string): string {
   return `${hour12}:${minutes} ${ampm}`;
 }
 
-export function ClassPageClient({ info }: { info: ClassInfo }) {
-  const [sessions, setSessions] = useState<SessionRow[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    (async () => {
-      const { data } = await supabaseHelpers.getAvailableSessions();
-      setSessions((data as SessionRow[] | null) ?? []);
-      setLoading(false);
-    })();
-  }, []);
-
-  // Same source /classes uses (getAvailableSessions filters status='scheduled'
-  // in Supabase). We further narrow to this class by dbType or dbName, and
-  // drop any past dates client-side.
-  const todayIso = new Date().toISOString().split('T')[0];
-  const upcoming = sessions.filter(
-    s =>
-      (s.class?.type === info.dbType || s.class?.name === info.dbName) &&
-      s.status === 'scheduled' &&
-      s.date >= todayIso
-  );
-
+export function ClassPageClient({
+  info,
+  upcoming,
+}: {
+  info: ClassInfo;
+  upcoming: SessionRow[];
+}) {
   const addToCart = (session: SessionRow) => {
     const cart = JSON.parse(localStorage.getItem('cart') || '[]') as SessionRow[];
     if (cart.find(item => item.id === session.id)) {
@@ -170,11 +137,7 @@ export function ClassPageClient({ info }: { info: ClassInfo }) {
       {/* Upcoming dates */}
       <section className="container-custom pb-12">
         <h2 className="text-2xl font-bold text-gray-900 mb-6">Upcoming dates</h2>
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="spinner" />
-          </div>
-        ) : upcoming.length === 0 ? (
+        {upcoming.length === 0 ? (
           <div className="card p-6 sm:p-8 bg-white">
             <p className="text-gray-700 mb-4">
               No dates are currently scheduled for this class. We run it on request for groups

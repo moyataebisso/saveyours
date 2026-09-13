@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Calendar, Users, MessageSquare, Plus, Edit, Trash2, CheckCircle, X, Clock, Phone, Mail, Save, Link } from 'lucide-react';
 import { toast } from '@/components/ui/Toaster';
 import type { Enrollment, ClassSession, Inquiry, Class } from '@/types';
+import { CLASS_INFO } from '@/lib/class-info';
 
 interface OverviewStats {
   totalEnrollments: number;
@@ -431,6 +432,26 @@ export default function AdminDashboard() {
   const contactedInquiries = inquiries.filter(i => i.status === 'contacted');
   const resolvedInquiries = inquiries.filter(i => i.status === 'resolved');
 
+  // Read-only comparison: for each CLASS_INFO entry, find the matching row in
+  // the classes table (already fetched by /api/admin/overview) and flag any
+  // price mismatch. Never auto-correct — Supabase is authoritative for
+  // checkout and only Meea should decide how to reconcile.
+  const priceDrifts = CLASS_INFO
+    .map(info => {
+      const dbClass = classes.find(
+        c => c.type === info.dbType || c.name === info.dbName
+      );
+      if (!dbClass) return null;
+      if (typeof dbClass.price !== 'number' || dbClass.price === info.price) return null;
+      return {
+        displayName: info.displayName,
+        dbName: dbClass.name,
+        codePrice: info.price,
+        dbPrice: dbClass.price,
+      };
+    })
+    .filter((d): d is NonNullable<typeof d> => d !== null);
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -489,6 +510,25 @@ export default function AdminDashboard() {
 
       {/* Stats */}
       <div className="container mx-auto px-4 py-8">
+        {priceDrifts.length > 0 && (
+          <div className="mb-6 rounded-lg border border-yellow-400 bg-yellow-50 p-4">
+            <p className="font-semibold text-yellow-900 mb-2">
+              Price mismatch between lib/class-info.ts and Supabase
+            </p>
+            <p className="text-sm text-yellow-900 mb-3">
+              Customers see the code price on public pages and are charged the Supabase
+              price at checkout. Reconcile one side to the other before the next enrollment.
+            </p>
+            <ul className="list-disc list-inside space-y-1 text-sm text-yellow-900">
+              {priceDrifts.map(d => (
+                <li key={d.displayName}>
+                  <strong>{d.displayName}</strong> — displayed as ${d.codePrice.toLocaleString()},
+                  charged as ${d.dbPrice.toLocaleString()} (Supabase row: {d.dbName})
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div className="grid md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white p-6 rounded-lg shadow">
             <div className="flex items-center justify-between mb-2">

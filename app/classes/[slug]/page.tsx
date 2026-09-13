@@ -63,9 +63,12 @@ export async function generateMetadata(
       url: canonicalPath,
       title,
       description,
+      images: [{ url: '/images/hero-cpr-training.png', width: 1200, height: 630, alt: 'SaveYours CPR training' }],
     },
     twitter: {
+      card: 'summary_large_image',
       title,
+      images: ['/images/hero-cpr-training.png'],
     },
   };
 }

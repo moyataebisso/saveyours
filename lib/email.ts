@@ -149,11 +149,11 @@ export async function sendEnrollmentConfirmation(
           </div>
 
           <p><strong>Questions or Need to Reschedule?</strong><br>
-          Please refer to our <a href="https://saveyours.net/policies" style="color: #DC2626; text-decoration: underline;">policies page</a> for information about cancellations, rescheduling, and refunds. If you need to cancel or reschedule, please email us at <a href="mailto:info@saveyours.net" style="color: #DC2626;">info@saveyours.net</a> at least 24 hours before your scheduled class.</p>
+          See our <a href="https://saveyours.net/policies" style="color: #DC2626; text-decoration: underline;">policies page</a> for the full cancellation and rescheduling policy. Rescheduling must be done at least 24 hours before your scheduled class, is subject to a fee of 50% of your original purchase, and is only to another date of the same class. Requests inside 24 hours and no-shows forfeit the course fee. For anything else, email <a href="mailto:info@saveyours.net" style="color: #DC2626;">info@saveyours.net</a>.</p>
           ${
             rescheduleUrl
               ? `<p style="margin-top:12px;"><strong>Need to reschedule?</strong><br>
-          You can move to another date in the same class, up to 24 hours before your class starts, for a 50% rescheduling fee: <a href="${escapeHtml(rescheduleUrl)}" style="color: #DC2626; text-decoration: underline;">Reschedule this class</a>.</p>`
+          You can move to another date of the same class, up to 24 hours before your class starts, for a 50% rescheduling fee: <a href="${escapeHtml(rescheduleUrl)}" style="color: #DC2626; text-decoration: underline;">Reschedule this class</a>.</p>`
               : ''
           }
           

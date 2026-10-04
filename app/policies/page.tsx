@@ -61,7 +61,7 @@ export default function PoliciesPage() {
         <div className="card p-8">
           <h2 className="text-2xl font-bold mb-6">Terms & Conditions</h2>
           
-          <p className="text-sm text-gray-500 mb-4">Last Updated: 09/06/2025</p>
+          <p className="text-sm text-gray-500 mb-4">Last Updated: 10/04/2026</p>
           
           <p className="text-gray-600 mb-6">
             Welcome to SaveYours LLC. By registering for or participating in our CPR, AED, 
@@ -96,37 +96,50 @@ export default function PoliciesPage() {
             </div>
 
             <div>
-              <h3 className="font-semibold text-lg mb-3">4. Liability Disclaimer</h3>
+              <h3 className="font-semibold text-lg mb-3">4. Rescheduling</h3>
               <p className="text-gray-600">
-                SaveYours LLC makes every effort to provide accurate, effective, and safe instruction. 
-                However, we are not responsible for how participants apply the training outside of class. 
-                By attending a course, you acknowledge and agree that SaveYours LLC, its instructors, 
-                and affiliates are not liable for any injury, loss, or damages that may occur during 
+                You may reschedule your class online using the link in your confirmation email, at
+                saveyours.net/reschedule, or by emailing info@saveyours.net. Rescheduling requests must
+                be made at least 24 hours before your scheduled class and are subject to a rescheduling
+                fee of half (50%) of your original purchase. Classes may only be rescheduled to another
+                date of the same class. Requests made less than 24 hours before the class, or failure to
+                attend without notice (&ldquo;no-show&rdquo;), will result in forfeiture of the course fee.{' '}
+                <strong><u>There will be no exceptions made to the rescheduling and refund policy.</u></strong>
+              </p>
+            </div>
+
+            <div>
+              <h3 className="font-semibold text-lg mb-3">5. Liability Disclaimer</h3>
+              <p className="text-gray-600">
+                SaveYours LLC makes every effort to provide accurate, effective, and safe instruction.
+                However, we are not responsible for how participants apply the training outside of class.
+                By attending a course, you acknowledge and agree that SaveYours LLC, its instructors,
+                and affiliates are not liable for any injury, loss, or damages that may occur during
                 or after training.
               </p>
             </div>
 
             <div>
-              <h3 className="font-semibold text-lg mb-3">5. Health & Safety</h3>
+              <h3 className="font-semibold text-lg mb-3">6. Health & Safety</h3>
               <p className="text-gray-600">
-                If you have any medical conditions or physical limitations, it is your responsibility 
-                to consult with a physician before participating. You agree to inform the instructor 
+                If you have any medical conditions or physical limitations, it is your responsibility
+                to consult with a physician before participating. You agree to inform the instructor
                 of any limitations that may affect your participation.
               </p>
             </div>
 
             <div>
-              <h3 className="font-semibold text-lg mb-3">6. Modifications to Terms</h3>
+              <h3 className="font-semibold text-lg mb-3">7. Modifications to Terms</h3>
               <p className="text-gray-600">
-                SaveYours LLC reserves the right to update or modify these Terms & Conditions at any 
+                SaveYours LLC reserves the right to update or modify these Terms & Conditions at any
                 time. The most current version will always be posted on our website.
               </p>
             </div>
 
             <div>
-              <h3 className="font-semibold text-lg mb-3">7. Governing Law</h3>
+              <h3 className="font-semibold text-lg mb-3">8. Governing Law</h3>
               <p className="text-gray-600">
-                These Terms & Conditions are governed by the laws of the State of Minnesota. Any 
+                These Terms & Conditions are governed by the laws of the State of Minnesota. Any
                 disputes shall be resolved in the courts of Minnesota.
               </p>
             </div>

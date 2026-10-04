@@ -2,4 +2,4 @@
 // and FAQ pages. Bump this when the content on any of those pages is
 // materially revised — search engines and AI answer engines favor content
 // with visible recency signals.
-export const LAST_UPDATED = 'September 12, 2026';
+export const LAST_UPDATED = 'October 4, 2026';

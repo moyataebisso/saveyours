@@ -178,7 +178,7 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
       {
         question: 'Can I switch to a different date?',
         answer:
-          `Yes, free of charge, if you email info@saveyours.net at least 24 hours before your scheduled class.`,
+          `Yes, up to 24 hours before your scheduled class, for a rescheduling fee of 50% of your original purchase. Reschedule online using the link in your confirmation email, at saveyours.net/reschedule, or by emailing info@saveyours.net. You can only move to another date of the same class.`,
       },
       {
         question: 'Can I register more than one person?',

@@ -29,9 +29,9 @@ Certifications are valid for two years from the date of the in-person class. Stu
 
 Administrative address: 10800 Lyndale Ave S Suite 310, Bloomington, MN 55420. On-site group training is offered throughout the Twin Cities metro and greater Minnesota.
 
-## Cancellations
+## Cancellations and rescheduling
 
-Full cancellation and refund terms are on /policies/refunds. In short: a full refund is available if you notify us within 24 hours of registration; after that, course fees are non-refundable. Rescheduling is free with at least 24 hours notice before class; no-shows forfeit the course fee.
+Full cancellation and refund terms are on /policies/refunds. In short: a full refund is available if you notify us within 24 hours of registration; after that, course fees are non-refundable. Rescheduling is available up to 24 hours before class for a fee of 50% of the original purchase, and must be to another date of the same class. Requests inside 24 hours and no-shows forfeit the course fee. No exceptions.
 
 ## Classes
 

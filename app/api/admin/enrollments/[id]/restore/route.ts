@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { guarded } from '@/lib/admin-auth'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { UUID_REGEX } from '@/lib/admin-limits'
+import { isSessionFullError } from '@/lib/capacity'
 
 // POST /api/admin/enrollments/[id]/restore
 // body: { sessionId }
@@ -47,6 +48,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       .single()
 
     if (error) {
+      // Capacity trigger refused the restore. Report the same user-visible
+      // message the Reconcile modal uses so the admin UI stays consistent.
+      if (isSessionFullError(error)) {
+        const cap = session.max_capacity
+        return NextResponse.json(
+          { error: `This class is full (${cap}/${cap}). Move the student to another session or refund them.` },
+          { status: 409 }
+        )
+      }
       console.error('[ADMIN_ENROLLMENT_RESTORE_UPDATE]', error)
       return NextResponse.json({ error: 'Failed to restore enrollment' }, { status: 500 })
     }

@@ -41,7 +41,7 @@ export default function AboutPage() {
                 Meea Mosissa founded SaveYours after earning his NREMT certification in 2022. The techniques he learned during that training convinced him that everyone should have the same knowledge, regardless of background.
               </p>
               <p className="text-gray-600 mb-4">
-                His training deepened his understanding of emergency care and made clear how much early intervention matters. That experience shaped SaveYours' mission: make life-saving education accessible so more people can respond when it matters most.
+                His training deepened his understanding of emergency care and made clear how much early intervention matters. That experience shaped SaveYours&rsquo; mission: make life-saving education accessible so more people can respond when it matters most.
               </p>
               <div className="flex items-center space-x-2 text-primary-600">
                 <Award className="w-5 h-5" />

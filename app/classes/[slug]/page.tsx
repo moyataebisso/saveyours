@@ -24,6 +24,7 @@ async function fetchUpcomingForClass(info: ClassInfo): Promise<SessionRow[]> {
       .select('*, class:classes(*)')
       .eq('status', 'scheduled')
       .gte('date', todayIso)
+      .is('archived_at', null)
       .order('date', { ascending: true });
     if (error) {
       console.error('[CLASS_PAGE] Session fetch error:', error);

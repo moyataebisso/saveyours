@@ -68,6 +68,21 @@ export default function AdminDashboard() {
     voucherEmailSent: boolean;
     warning?: string;
   }>>([]);
+  const [overflows, setOverflows] = useState<Array<{
+    id: string;
+    session_id: string;
+    guest_email: string | null;
+    guest_name: string | null;
+    amount_paid: number | null;
+    stripe_payment_intent_id: string;
+    created_at: string;
+    session?: {
+      date?: string;
+      start_time?: string;
+      class?: { name?: string };
+    } | null;
+  }>>([]);
+  const [resolvingOverflow, setResolvingOverflow] = useState<string | null>(null);
 
   // Session lives in an HttpOnly cookie set by /api/admin/login. This flag is
   // a non-authoritative UI hint only; the real auth check is /api/admin/session,
@@ -185,6 +200,20 @@ export default function AdminDashboard() {
       setInquiries(data.inquiries || []);
       setClasses(data.classes || []);
       setStats(data.stats);
+      // Capacity overflows load separately — they're a safety net, not core
+      // dashboard data. A failure here must not block the rest of the page.
+      try {
+        const ovRes = await fetch('/api/admin/capacity-overflows', { cache: 'no-store' });
+        if (ovRes.ok) {
+          const ovData = await ovRes.json();
+          setOverflows(Array.isArray(ovData.overflows) ? ovData.overflows : []);
+        } else {
+          setOverflows([]);
+        }
+      } catch (ovErr) {
+        console.error('[ADMIN] Failed to load capacity overflows:', ovErr);
+        setOverflows([]);
+      }
     } catch (error) {
       console.error('Error loading data:', error);
       setStats(null);
@@ -196,6 +225,32 @@ export default function AdminDashboard() {
       toast.error('Failed to load dashboard data');
     }
     setLoading(false);
+  };
+
+  const resolveOverflow = async (overflowId: string) => {
+    setResolvingOverflow(overflowId);
+    try {
+      const res = await fetch(`/api/admin/capacity-overflows/${overflowId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resolved: true }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data?.error || 'Failed to resolve overflow');
+        return;
+      }
+      // Remove the row locally so the banner updates immediately. A full
+      // reload would also work but makes the UI feel laggy for a single-row
+      // change.
+      setOverflows(prev => prev.filter(o => o.id !== overflowId));
+      toast.success('Marked resolved');
+    } catch (err) {
+      console.error('resolveOverflow threw:', err);
+      toast.error('Failed to resolve overflow');
+    } finally {
+      setResolvingOverflow(null);
+    }
   };
 
   const markEnrollmentComplete = async (enrollmentId: string) => {
@@ -511,6 +566,44 @@ export default function AdminDashboard() {
 
       {/* Stats */}
       <div className="container mx-auto px-4 py-8">
+        {overflows.length > 0 && (
+          <div className="mb-6 rounded-lg border border-red-400 bg-red-50 p-4">
+            <p className="font-semibold text-red-900 mb-2">
+              {overflows.length === 1
+                ? '1 paid student needs manual handling (class was full)'
+                : `${overflows.length} paid students need manual handling (classes were full)`}
+            </p>
+            <p className="text-sm text-red-900 mb-3">
+              The student paid in Stripe but the DB refused the seat. Contact them to move or
+              refund (refunds stay manual in the Stripe dashboard).
+            </p>
+            <ul className="space-y-2">
+              {overflows.map(o => (
+                <li
+                  key={o.id}
+                  className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded border border-red-200 bg-white px-3 py-2 text-sm"
+                >
+                  <div className="text-red-900">
+                    <strong>{o.guest_name || 'Unknown'}</strong>
+                    {o.guest_email ? ` (${o.guest_email})` : ''}
+                    {' — '}
+                    {o.session?.class?.name || 'Unknown class'}
+                    {o.session?.date ? ` on ${o.session.date}` : ''}
+                    {' — $'}{(o.amount_paid ?? 0).toFixed(2)}
+                    {' — PI '}<code className="text-xs">{o.stripe_payment_intent_id}</code>
+                  </div>
+                  <button
+                    disabled={resolvingOverflow === o.id}
+                    onClick={() => resolveOverflow(o.id)}
+                    className="shrink-0 px-3 py-1.5 bg-red-600 text-white text-xs font-semibold rounded hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {resolvingOverflow === o.id ? 'Resolving…' : 'Mark resolved'}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {priceDrifts.length > 0 && (
           <div className="mb-6 rounded-lg border border-yellow-400 bg-yellow-50 p-4">
             <p className="font-semibold text-yellow-900 mb-2">

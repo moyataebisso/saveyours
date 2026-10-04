@@ -66,8 +66,9 @@ export async function POST(request: Request) {
         <p><small>ID: ${safeId}</small></p>
       `
     })
-  } catch (e: any) {
-    console.error('Email failed:', e?.message || e)
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error('Email failed:', msg)
     // Don't fail the request — just log it
   }
 

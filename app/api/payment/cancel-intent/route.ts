@@ -29,9 +29,10 @@ export async function POST(req: NextRequest) {
     await stripe.paymentIntents.cancel(paymentIntentId)
 
     return NextResponse.json({ success: true })
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Stripe returns this when a PI is already in a non-cancelable state.
-    if (error?.code === 'payment_intent_unexpected_state') {
+    const code = (error as { code?: string } | null)?.code
+    if (code === 'payment_intent_unexpected_state') {
       return NextResponse.json({ success: true })
     }
     console.error('Cancel intent error:', error)

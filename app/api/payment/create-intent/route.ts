@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { stripe } from '@/lib/stripe-server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { isSessionFull } from '@/lib/capacity'
 import {
   issuePiOwnershipCookie,
   PI_COOKIE_NAME,
@@ -127,8 +128,24 @@ export async function POST(req: NextRequest) {
     }
 
     // Capacity check across all sessions before we create a PaymentIntent.
+    // Count the real enrollment rows (status <> 'cancelled') rather than
+    // trusting class_sessions.current_enrollment — the counter has drifted
+    // under concurrent writes before (10/03 overbook: 13 rows, counter=12),
+    // and the DB trigger counts rows, so the pre-payment gate must agree
+    // with the trigger or a user can pay for a seat they can never take.
     for (const session of sessionDetails) {
-      if (session.current_enrollment >= session.max_capacity) {
+      const { count: seatsTaken, error: countError } = await supabaseAdmin
+        .from('enrollments')
+        .select('*', { count: 'exact', head: true })
+        .eq('session_id', session.id)
+        .neq('status', 'cancelled')
+
+      if (countError) {
+        console.error('[CREATE_INTENT] Seat-count query failed:', { countError, id: session.id })
+        return NextResponse.json({ error: 'Failed to check class capacity' }, { status: 500 })
+      }
+
+      if (isSessionFull(session.max_capacity, seatsTaken ?? 0)) {
         return NextResponse.json({
           error: `Class "${session.class.name}" is full`,
         }, { status: 400 })

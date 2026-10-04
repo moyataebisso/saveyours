@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { stripe } from '@/lib/stripe-server'
-import { sendEnrollmentConfirmation, sendVoucherEmail } from '@/lib/email'
+import { sendEnrollmentConfirmation, sendVoucherEmail, sendAdminAlert, escapeHtml } from '@/lib/email'
+import { isSessionFullError } from '@/lib/capacity'
 
 function formatTime(time: string): string {
   if (!time) return '';
@@ -12,8 +13,71 @@ function formatTime(time: string): string {
   return `${hour12}:${minutes} ${ampm}`;
 }
 
+// Record a paid-but-full case in capacity_overflows and send the admin alert.
+// Upserts on stripe_payment_intent_id so webhook + success-page cannot both
+// create duplicate rows for the same charge.
+async function recordCapacityOverflow(args: {
+  sessionId: string
+  guestEmail: string
+  guestName: string
+  phone: string | null
+  amountPaid: number
+  paymentIntentId: string
+  className: string
+  sessionDate: string
+  sessionStart: string
+  source: 'checkout' | 'webhook'
+}) {
+  const { error: upsertError } = await supabaseAdmin
+    .from('capacity_overflows')
+    .upsert(
+      {
+        session_id: args.sessionId,
+        guest_email: args.guestEmail,
+        guest_name: args.guestName,
+        amount_paid: args.amountPaid,
+        stripe_payment_intent_id: args.paymentIntentId,
+        payload: {
+          phone: args.phone,
+          className: args.className,
+          sessionDate: args.sessionDate,
+          sessionStart: args.sessionStart,
+          source: args.source,
+        },
+        resolved: false,
+      },
+      { onConflict: 'stripe_payment_intent_id' }
+    )
+
+  if (upsertError) {
+    console.error('[CAPACITY_OVERFLOW] Upsert failed — the charge still exists in Stripe, admin alert is the backstop:', {
+      upsertError,
+      paymentIntentId: args.paymentIntentId,
+      sessionId: args.sessionId,
+    })
+  }
+
+  // Admin email is independent of the DB write — never let one failure
+  // swallow the other, both are backstops for a paid-but-unseated student.
+  await sendAdminAlert(
+    'SaveYours — Paid but class full (manual move or refund required)',
+    `<h2>Paid but class full</h2>
+    <p>A student was charged but their class is full. <strong>Do not auto-refund</strong> — contact them within 24 hours to move them to another date or issue a refund from the Stripe dashboard.</p>
+    <table style="border-collapse:collapse;margin:16px 0;">
+      <tr><td style="padding:8px;font-weight:bold;">Student:</td><td style="padding:8px;">${escapeHtml(args.guestName)} (${escapeHtml(args.guestEmail)})</td></tr>
+      <tr><td style="padding:8px;font-weight:bold;">Phone:</td><td style="padding:8px;">${escapeHtml(args.phone || 'N/A')}</td></tr>
+      <tr><td style="padding:8px;font-weight:bold;">Class:</td><td style="padding:8px;">${escapeHtml(args.className)}</td></tr>
+      <tr><td style="padding:8px;font-weight:bold;">Session date/time:</td><td style="padding:8px;">${escapeHtml(args.sessionDate)} at ${escapeHtml(args.sessionStart)}</td></tr>
+      <tr><td style="padding:8px;font-weight:bold;">Amount paid:</td><td style="padding:8px;">$${args.amountPaid.toFixed(2)}</td></tr>
+      <tr><td style="padding:8px;font-weight:bold;">Payment Intent:</td><td style="padding:8px;">${escapeHtml(args.paymentIntentId)}</td></tr>
+      <tr><td style="padding:8px;font-weight:bold;">Source:</td><td style="padding:8px;">${escapeHtml(args.source)}</td></tr>
+    </table>
+    <p>See the <a href="https://saveyours.net/admin">Admin Dashboard</a> overflow banner to mark this resolved once the student is handled.</p>`
+  ).catch(err => console.error('[CAPACITY_OVERFLOW] Admin alert email failed:', err))
+}
+
 // Called from the checkout success flow (app/cart/page.tsx) immediately after
-// stripe.confirmPayment() resolves. This is now the PRIMARY path for creating
+// stripe.confirmPayment() resolves. This is the PRIMARY path for creating
 // enrollments and sending confirmation/voucher emails — the Stripe webhook
 // acts as a fallback (see app/api/webhook/stripe/route.ts).
 //
@@ -54,20 +118,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Payment not confirmed' }, { status: 400 })
     }
 
+    // Idempotency per payment intent. If ANY enrollment already exists for
+    // this PI (either from the webhook winning the race, or from a prior
+    // retry of this same request), return the existing rows rather than
+    // re-running the RPC. Capacity_overflows uses the same key so the two
+    // tables stay in sync.
+    const { data: existingByPi, error: existingByPiError } = await supabaseAdmin
+      .from('enrollments')
+      .select('id, session_id')
+      .eq('stripe_payment_intent_id', paymentIntent.id)
+    if (existingByPiError) {
+      console.error('[ENROLLMENT] Lookup-by-PI failed:', existingByPiError)
+    }
+    const existingSessionIds = new Set((existingByPi ?? []).map(e => e.session_id))
+
     const enrolledClasses: { className: string; date: string; time: string }[] = []
+    let overflowCount = 0
 
     for (const sid of ids) {
-      // If the webhook beat us to this enrollment (rare, but possible on slow
-      // clients / fast webhook delivery), skip to avoid duplicate emails.
-      const { data: existing } = await supabaseAdmin
-        .from('enrollments')
-        .select('*')
-        .eq('stripe_payment_intent_id', paymentIntent.id)
-        .eq('session_id', sid)
-        .maybeSingle()
-      if (existing) {
+      // If a prior run (or the webhook) already created the enrollment for
+      // this PI + session combo, skip to avoid duplicate emails or RPC calls.
+      if (existingSessionIds.has(sid)) {
         console.log(
-          `[ENROLLMENT] Enrollment already exists for ${paymentIntent.id}/${sid} — webhook handled it`
+          `[ENROLLMENT] Enrollment already exists for ${paymentIntent.id}/${sid} — skipping`
         )
         continue
       }
@@ -83,7 +156,10 @@ export async function POST(req: NextRequest) {
       }
 
       // Use the atomic RPC for the capacity check + insert so we can't overbook
-      // even under concurrent checkouts.
+      // even under concurrent checkouts. The RPC can either return
+      // { success:false, error:'CLASS_FULL' } or — now that the DB trigger is
+      // in place — raise a Postgres exception whose message starts with
+      // SESSION_FULL. Treat both as the same case.
       const { data: result, error: rpcError } = await supabaseAdmin.rpc('enroll_student_if_capacity', {
         p_session_id: sid,
         p_guest_name: name,
@@ -93,14 +169,41 @@ export async function POST(req: NextRequest) {
         p_amount_paid: session.class.price,
       }) as { data: { success: boolean; error?: string; enrollment_id?: string } | null; error: unknown }
 
+      const isFullFromRpc = result && !result.success && result.error === 'CLASS_FULL'
+      const isFullFromTrigger = !!rpcError && isSessionFullError(rpcError)
+
+      if (isFullFromRpc || isFullFromTrigger) {
+        console.warn('[ENROLLMENT] Session full — recording overflow:', {
+          sid,
+          email,
+          paymentIntentId: paymentIntent.id,
+          source: isFullFromTrigger ? 'trigger' : 'rpc',
+        })
+        await recordCapacityOverflow({
+          sessionId: sid,
+          guestEmail: email,
+          guestName: name,
+          phone: typeof phone === 'string' ? phone : null,
+          amountPaid: Number(session.class.price) || paymentIntent.amount / 100,
+          paymentIntentId: paymentIntent.id,
+          className: session.class.name,
+          sessionDate: session.date,
+          sessionStart: session.start_time,
+          source: 'checkout',
+        })
+        overflowCount++
+        continue
+      }
+
       if (rpcError) {
         console.error('[ENROLLMENT] RPC error for session:', { rpcError, sid, email })
         continue
       }
 
       if (!result || !result.success) {
-        // CLASS_FULL or other failure — the webhook will catch this case and
-        // issue the refund + send the refund-notification email.
+        // Non-capacity failure (e.g. session cancelled, archived). Leave to
+        // the webhook which runs the same RPC — it may succeed, or it may
+        // also fail and record an overflow.
         console.warn('[ENROLLMENT] Enrollment did not succeed; leaving to webhook:', {
           result,
           sid,
@@ -241,6 +344,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       enrolledCount: enrolledClasses.length,
+      overflowCount,
+      message:
+        overflowCount > 0
+          ? "This class filled up while you were checking out. We've been notified and will contact you within 24 hours to move you to another date or refund you."
+          : undefined,
     })
   } catch (error) {
     console.error('Enrollment creation error:', error)

@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import NextLink from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
-import { loadStripe, Stripe } from '@stripe/stripe-js';
+import { Stripe } from '@stripe/stripe-js';
 import { getStripe } from '@/lib/stripe';
 import { toast } from '@/components/ui/Toaster';
-import { Trash2, X } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import type { ClassSessionWithClass } from '@/types';
 import { BLENDED_CART_LINE, isBlendedClass } from '@/lib/blended-copy';
 import { REFUND_POLICY } from '@/lib/refund-policy';
@@ -90,7 +91,7 @@ function CheckoutForm({ sessions, totalAmount, paymentIntentId, onPaymentIntentR
     // to the new clientSecret which re-mounts Stripe Elements — card
     // entry resets. We tell the user their session refreshed and ask
     // them to click Submit again; we do NOT say saving failed.
-    let updateStatus = await runUpdateIntent(paymentIntentId);
+    const updateStatus = await runUpdateIntent(paymentIntentId);
 
     if (updateStatus === 'stale') {
       try {
@@ -561,12 +562,12 @@ export default function CartPage() {
                 <p className="text-red-700 mb-4">
                   One or more classes in your cart have reached full capacity. Please remove the full class(es) and choose a different date, or check back later for availability.
                 </p>
-                <a
+                <NextLink
                   href="/classes"
                   className="inline-block bg-primary-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-primary-700 transition-colors"
                 >
                   Browse Available Classes
-                </a>
+                </NextLink>
               </div>
             )}
 

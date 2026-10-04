@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe-server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEnrollmentConfirmation, sendVoucherEmail, sendAdminAlert, escapeHtml } from '@/lib/email'
+import { isSessionFullError } from '@/lib/capacity'
 import Stripe from 'stripe'
 
 function formatTime(time: string): string {
@@ -11,6 +12,68 @@ function formatTime(time: string): string {
   const ampm = hour >= 12 ? 'PM' : 'AM';
   const hour12 = hour % 12 || 12;
   return `${hour12}:${minutes} ${ampm}`;
+}
+
+// Mirror of recordCapacityOverflow in app/api/enrollment/create. Kept as a
+// local copy rather than a shared import so the two call sites stay simple
+// to audit — the function body is small, and the two emails differ in the
+// "source" they report.
+async function recordCapacityOverflow(args: {
+  sessionId: string
+  guestEmail: string
+  guestName: string
+  phone: string | null
+  amountPaid: number
+  paymentIntentId: string
+  className: string
+  sessionDate: string
+  sessionStart: string
+  source: 'checkout' | 'webhook'
+}) {
+  const { error: upsertError } = await supabaseAdmin
+    .from('capacity_overflows')
+    .upsert(
+      {
+        session_id: args.sessionId,
+        guest_email: args.guestEmail,
+        guest_name: args.guestName,
+        amount_paid: args.amountPaid,
+        stripe_payment_intent_id: args.paymentIntentId,
+        payload: {
+          phone: args.phone,
+          className: args.className,
+          sessionDate: args.sessionDate,
+          sessionStart: args.sessionStart,
+          source: args.source,
+        },
+        resolved: false,
+      },
+      { onConflict: 'stripe_payment_intent_id' }
+    )
+
+  if (upsertError) {
+    console.error('[CAPACITY_OVERFLOW] Upsert failed — admin alert is the backstop:', {
+      upsertError,
+      paymentIntentId: args.paymentIntentId,
+      sessionId: args.sessionId,
+    })
+  }
+
+  await sendAdminAlert(
+    'SaveYours — Paid but class full (manual move or refund required)',
+    `<h2>Paid but class full</h2>
+    <p>A student was charged but their class is full. <strong>Do not auto-refund</strong> — contact them within 24 hours to move them to another date or issue a refund from the Stripe dashboard.</p>
+    <table style="border-collapse:collapse;margin:16px 0;">
+      <tr><td style="padding:8px;font-weight:bold;">Student:</td><td style="padding:8px;">${escapeHtml(args.guestName)} (${escapeHtml(args.guestEmail)})</td></tr>
+      <tr><td style="padding:8px;font-weight:bold;">Phone:</td><td style="padding:8px;">${escapeHtml(args.phone || 'N/A')}</td></tr>
+      <tr><td style="padding:8px;font-weight:bold;">Class:</td><td style="padding:8px;">${escapeHtml(args.className)}</td></tr>
+      <tr><td style="padding:8px;font-weight:bold;">Session date/time:</td><td style="padding:8px;">${escapeHtml(args.sessionDate)} at ${escapeHtml(args.sessionStart)}</td></tr>
+      <tr><td style="padding:8px;font-weight:bold;">Amount paid:</td><td style="padding:8px;">$${args.amountPaid.toFixed(2)}</td></tr>
+      <tr><td style="padding:8px;font-weight:bold;">Payment Intent:</td><td style="padding:8px;">${escapeHtml(args.paymentIntentId)}</td></tr>
+      <tr><td style="padding:8px;font-weight:bold;">Source:</td><td style="padding:8px;">${escapeHtml(args.source)}</td></tr>
+    </table>
+    <p>See the <a href="https://saveyours.net/admin">Admin Dashboard</a> overflow banner to mark this resolved.</p>`
+  ).catch(err => console.error('[CAPACITY_OVERFLOW] Admin alert email failed:', err))
 }
 
 export async function POST(req: NextRequest) {
@@ -73,6 +136,19 @@ export async function POST(req: NextRequest) {
       sessionIds = [metadata.sessionId];
     }
 
+    // Idempotency per payment intent across the whole webhook invocation.
+    // Pre-fetching all enrollments owned by this PI lets us decide, per
+    // session, whether the checkout flow already landed the row — avoiding
+    // a second RPC call and the race window that caused the 10/03 overbook.
+    const { data: enrollmentsForPi } = await supabaseAdmin
+      .from('enrollments')
+      .select('id, session_id, payment_status')
+      .eq('stripe_payment_intent_id', paymentIntent.id)
+    const existingBySession = new Map<string, { id: string; payment_status: string }>()
+    for (const row of enrollmentsForPi ?? []) {
+      existingBySession.set(row.session_id, { id: row.id, payment_status: row.payment_status })
+    }
+
     // The checkout success flow (app/api/enrollment/create) is now the primary
     // creator of enrollments + sender of emails. This webhook's job is:
     //   1. If an enrollment already exists for a given paymentIntent+session,
@@ -97,16 +173,7 @@ export async function POST(req: NextRequest) {
       }
 
       // Happy path: checkout flow already created this enrollment.
-      const { data: existing, error: lookupError } = await supabaseAdmin
-        .from('enrollments')
-        .select('*')
-        .eq('stripe_payment_intent_id', paymentIntent.id)
-        .eq('session_id', sessionId)
-        .maybeSingle();
-
-      if (lookupError) {
-        console.error('[WEBHOOK] Error looking up existing enrollment:', lookupError);
-      }
+      const existing = existingBySession.get(sessionId) ?? null
 
       if (existing) {
         if (existing.payment_status === 'paid') {
@@ -142,6 +209,26 @@ export async function POST(req: NextRequest) {
         p_stripe_payment_intent_id: paymentIntent.id,
         p_amount_paid: session.class.price,
       }) as { data: { success: boolean; error?: string; enrollment_id?: string } | null; error: unknown };
+
+      const isFullFromRpc = result && !result.success && result.error === 'CLASS_FULL'
+      const isFullFromTrigger = !!rpcError && isSessionFullError(rpcError)
+
+      if (isFullFromRpc || isFullFromTrigger) {
+        console.warn(`[WEBHOOK] Session full — recording overflow for ${sessionId}, ${email}`);
+        await recordCapacityOverflow({
+          sessionId,
+          guestEmail: email,
+          guestName: name,
+          phone: phone || null,
+          amountPaid: Number(session.class.price) || paymentIntent.amount / 100,
+          paymentIntentId: paymentIntent.id,
+          className: session.class.name,
+          sessionDate: session.date,
+          sessionStart: session.start_time,
+          source: 'webhook',
+        })
+        continue
+      }
 
       if (rpcError) {
         console.error('❌ [WEBHOOK] RPC error for session:', { rpcError, sessionId, email });
@@ -215,26 +302,6 @@ export async function POST(req: NextRequest) {
         } catch (voucherError) {
           console.error('❌ [WEBHOOK] Voucher assignment error (non-fatal):', voucherError);
         }
-      } else if (result && result.error === 'CLASS_FULL') {
-        // Class is full — payment was already charged. We do NOT auto-refund.
-        // Alert admin so the overbooking can be resolved manually.
-        console.warn(`⚠️ [WEBHOOK] CLASS_FULL for session ${sessionId} — manual handling required for ${email}`);
-
-        await sendAdminAlert(
-          '⚠️ SaveYours - Overbooking Detected (Manual Review Required)',
-          `<h2>Overbooking Detected</h2>
-          <p>A student was charged for a class that is already full. <strong>No automatic refund was issued</strong> — please review and handle this manually.</p>
-          <table style="border-collapse:collapse;margin:16px 0;">
-            <tr><td style="padding:8px;font-weight:bold;">Student:</td><td style="padding:8px;">${escapeHtml(name)} (${escapeHtml(email)})</td></tr>
-            <tr><td style="padding:8px;font-weight:bold;">Phone:</td><td style="padding:8px;">${escapeHtml(phone || 'N/A')}</td></tr>
-            <tr><td style="padding:8px;font-weight:bold;">Payment Intent:</td><td style="padding:8px;">${escapeHtml(paymentIntent.id)}</td></tr>
-            <tr><td style="padding:8px;font-weight:bold;">Amount Paid (Stripe):</td><td style="padding:8px;">$${(paymentIntent.amount / 100).toFixed(2)}</td></tr>
-            <tr><td style="padding:8px;font-weight:bold;">Full Session:</td><td style="padding:8px;">${escapeHtml(session.class.name)}</td></tr>
-            <tr><td style="padding:8px;font-weight:bold;">Session Date/Time:</td><td style="padding:8px;">${escapeHtml(session.date)} at ${escapeHtml(session.start_time)}</td></tr>
-            <tr><td style="padding:8px;font-weight:bold;">Session Price:</td><td style="padding:8px;">$${escapeHtml(session.class.price)}</td></tr>
-          </table>
-          <p>Contact the student and, if appropriate, issue a refund via the Stripe dashboard.</p>`
-        ).catch(err => console.error('Failed to send overbooking admin alert:', err));
       } else {
         console.error('❌ [WEBHOOK] Enrollment failed:', { result, sessionId, email });
       }

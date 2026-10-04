@@ -12,7 +12,13 @@
       "Bash(npm run:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(xargs grep *)",
+      "Bash(grep *)",
+      "Bash(echo \"---exit:$?---\")",
+      "Bash(taskkill //F //IM node.exe)",
+      "Bash(echo \"static-exit:$?\")",
+      "Bash(echo \"hint-flag-exit:$?\")"
     ]
   }
 }

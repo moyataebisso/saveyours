@@ -3,6 +3,7 @@ import { stripe } from '@/lib/stripe-server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEnrollmentConfirmation, sendVoucherEmail } from '@/lib/email'
 import { requireAdmin, AdminUnauthorizedError } from '@/lib/admin-auth'
+import { isSessionFullError } from '@/lib/capacity'
 
 function unauthorized() {
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -185,7 +186,18 @@ export async function POST(req: NextRequest) {
         .single()
 
       if (error) {
-        errors.push(`Failed to create enrollment for session ${sessionId}: ${error.message}`)
+        // The DB capacity trigger refuses the insert when the class is full.
+        // Report it as a dedicated error so the modal can show the "move or
+        // refund" message rather than a generic "Failed to create enrollment".
+        // CRITICAL: never send voucher/confirmation emails below when the
+        // insert didn't land — the `continue` here enforces that invariant.
+        if (isSessionFullError(error)) {
+          const className = session?.class?.name ?? 'This class'
+          const cap = session?.max_capacity ?? '?'
+          errors.push(`This class is full (${cap}/${cap}). Move the student to another session or refund them. (${className})`)
+        } else {
+          errors.push(`Failed to create enrollment for session ${sessionId}: ${error.message}`)
+        }
         continue
       }
 

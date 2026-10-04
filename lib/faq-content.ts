@@ -13,6 +13,12 @@ import { CLASS_INFO } from './class-info'
 export interface FaqItem {
   question: string
   answer: string
+  // Optional single-sentence emphasis rendered after the answer paragraph as
+  // bold-and-underlined. Only used for the "no exceptions to the policy" line
+  // on the cancellations/rescheduling answers so the formatting matches
+  // /policies without needing rich-text in every answer string. Plain-text
+  // consumers (FAQPage JSON-LD, llms.txt) append it as a trailing sentence.
+  trailingEmphasis?: string
 }
 
 export interface FaqCategory {
@@ -33,6 +39,30 @@ const pricingSentence =
   CLASS_INFO.map((c) => `${c.displayName} is $${c.price}`).join('. ') + '.'
 
 export const FAQ_CATEGORIES: FaqCategory[] = [
+  {
+    // Hoisted to the top of the FAQ as of 2026-10-04 so the 24h / 50%-fee
+    // rule is impossible to miss when a student checks the FAQ. The two
+    // questions below used to live in "Registration and Payment".
+    title: 'Cancellations & Rescheduling',
+    items: [
+      {
+        question: 'Can I cancel or get a refund?',
+        // Composed from REFUND_POLICY so editing that constant updates this
+        // answer automatically. Bullets are joined into a natural paragraph.
+        answer: [
+          ...refundCancellationBullets,
+          ...rescheduleBullets,
+        ].join(' '),
+        trailingEmphasis: REFUND_POLICY.noExceptionsLine,
+      },
+      {
+        question: 'Can I switch to a different date?',
+        answer:
+          `Yes, up to 24 hours before your scheduled class, for a rescheduling fee of 50% of your original purchase. Reschedule online using the link in your confirmation email, at saveyours.net/reschedule, or by emailing info@saveyours.net. You can only move to another date of the same class.`,
+        trailingEmphasis: REFUND_POLICY.noExceptionsLine,
+      },
+    ],
+  },
   {
     title: 'Getting Started',
     items: [
@@ -165,20 +195,6 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
         answer:
           `Browse classes on our website, pick a date and time, and complete registration and payment online. ` +
           `You'll get a confirmation email right away and the online course instructions within 24 hours.`,
-      },
-      {
-        question: 'Can I cancel or get a refund?',
-        // Composed from REFUND_POLICY so editing that constant updates this
-        // answer automatically. Bullets are joined into a natural paragraph.
-        answer: [
-          ...refundCancellationBullets,
-          ...rescheduleBullets,
-        ].join(' '),
-      },
-      {
-        question: 'Can I switch to a different date?',
-        answer:
-          `Yes, up to 24 hours before your scheduled class, for a rescheduling fee of 50% of your original purchase. Reschedule online using the link in your confirmation email, at saveyours.net/reschedule, or by emailing info@saveyours.net. You can only move to another date of the same class.`,
       },
       {
         question: 'Can I register more than one person?',

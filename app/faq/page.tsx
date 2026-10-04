@@ -25,7 +25,9 @@ export const metadata: Metadata = {
 
 // FAQPage schema for search engines. Every question and answer is included
 // so long-tail queries ("how long is CPR certification good for") can pull
-// answers directly into search results.
+// answers directly into search results. Any trailingEmphasis is appended as
+// plain text (schema is text-only; the visual emphasis lives in the HTML
+// render below).
 function buildFaqJsonLd() {
   return {
     '@context': 'https://schema.org',
@@ -36,7 +38,9 @@ function buildFaqJsonLd() {
         name: item.question,
         acceptedAnswer: {
           '@type': 'Answer',
-          text: item.answer,
+          text: item.trailingEmphasis
+            ? `${item.answer} ${item.trailingEmphasis}`
+            : item.answer,
         },
       }))
     ),
@@ -101,6 +105,11 @@ export default function FaqPage() {
                     </summary>
                     <div className="px-4 sm:px-5 pb-4 sm:pb-5 text-sm sm:text-base text-gray-700 leading-relaxed whitespace-pre-line">
                       {item.answer}
+                      {item.trailingEmphasis && (
+                        <p className="mt-3 text-gray-900">
+                          <strong><u>{item.trailingEmphasis}</u></strong>
+                        </p>
+                      )}
                     </div>
                   </details>
                 ))}

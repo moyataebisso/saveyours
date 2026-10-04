@@ -25,7 +25,33 @@ export default function PoliciesPage() {
     <div className="min-h-screen bg-gray-50">
       <section className="container-custom py-12">
         <h1 className="text-4xl font-bold mb-2">Policies</h1>
-        <p className="text-sm text-gray-500 mb-8">Last updated: {LAST_UPDATED}</p>
+        <p className="text-sm text-gray-500 mb-6">Last updated: {LAST_UPDATED}</p>
+
+        {/* Policy summary callout — short enough to read without scrolling,
+            keyed to the no-exceptions line at the bottom. Full numbered T&C
+            still renders below so nothing is hidden; this just stops people
+            from missing the 24h/50%-fee rule. */}
+        <div className="mb-8 rounded-lg border-l-4 border-[#CC2936] bg-[#CC2936]/5 p-5 sm:p-6">
+          <h2 className="text-lg sm:text-xl font-bold text-[#1B2A4A] mb-3">
+            At a glance
+          </h2>
+          <ul className="list-disc list-inside space-y-1 text-gray-800 text-sm sm:text-base">
+            <li>
+              Full refund within 24 hours of registration; after that, course fees are
+              non-refundable.
+            </li>
+            <li>
+              Reschedule at least 24 hours before class for a 50% fee — same class only —
+              via the link in your confirmation email or at saveyours.net/reschedule.
+            </li>
+            <li>
+              Requests inside 24 hours or no-shows forfeit the course fee.
+            </li>
+          </ul>
+          <p className="mt-3 text-gray-900 text-sm sm:text-base">
+            <strong><u>{REFUND_POLICY.noExceptionsLine}</u></strong>
+          </p>
+        </div>
 
         <div className="card p-8 mb-8">
           <h2 className="text-2xl font-bold mb-6">Cancellation & Refund Policy</h2>
@@ -44,6 +70,11 @@ export default function PoliciesPage() {
               )}
               {section.paragraph && (
                 <p className="text-gray-600 mb-6">{section.paragraph}</p>
+              )}
+              {section.heading === 'Rescheduling' && (
+                <p className="text-gray-900 mb-6">
+                  <strong><u>{REFUND_POLICY.noExceptionsLine}</u></strong>
+                </p>
               )}
             </div>
           ))}

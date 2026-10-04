@@ -24,6 +24,12 @@ export const REFUND_POLICY: {
   // 2026-10-04, rescheduling is a paid 50% fee (not free) — the sentence
   // sells flexibility, not the fee itself.
   reassuranceSentence: string
+  // The single bold-and-underlined "no exceptions" line. Stored separately
+  // from the Rescheduling bullets so every rendering surface (policies,
+  // /policies/refunds, cart scrollbox, FAQ) can wrap it in
+  // <strong><u>…</u></strong> without needing dangerouslySetInnerHTML. Keep
+  // the plain-text wording consistent with the T&C section 4 copy.
+  noExceptionsLine: string
 } = {
   intro:
     'At SaveYours LLC, we value your commitment to learning lifesaving skills. To ensure fairness and accommodate all participants, we have the following cancellation and rescheduling policy:',
@@ -31,6 +37,8 @@ export const REFUND_POLICY: {
     'A full refund is available within 24 hours of registration; after that, course fees are non-refundable.',
   reassuranceSentence:
     'Plans change — you can reschedule to another date of the same class, up to 24 hours before class, for a 50% fee.',
+  noExceptionsLine:
+    'There will be no exceptions made to the rescheduling and refund policy.',
   sections: [
     {
       heading: 'Cancellations',
@@ -46,7 +54,6 @@ export const REFUND_POLICY: {
         'Rescheduling requests must be made at least 24 hours before your scheduled class and are subject to a rescheduling fee of half (50%) of your original purchase.',
         'Classes may only be rescheduled to another date of the same class.',
         'Requests made less than 24 hours before the class, or failure to attend without notice (no-show), will result in forfeiture of the course fee.',
-        'There will be no exceptions made to the rescheduling and refund policy.',
       ],
     },
     {

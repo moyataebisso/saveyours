@@ -51,6 +51,11 @@ export default function RefundsPage() {
                 </ul>
               )}
               {section.paragraph && <p className="text-gray-700">{section.paragraph}</p>}
+              {section.heading === 'Rescheduling' && (
+                <p className="mt-3 text-gray-900">
+                  <strong><u>{REFUND_POLICY.noExceptionsLine}</u></strong>
+                </p>
+              )}
             </div>
           ))}
 

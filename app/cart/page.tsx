@@ -279,6 +279,11 @@ function CheckoutForm({ sessions, totalAmount, paymentIntentId, onPaymentIntentR
                   </ul>
                 )}
                 {section.paragraph && <p className="mt-1">{section.paragraph}</p>}
+                {section.heading === 'Rescheduling' && (
+                  <p className="mt-2 text-gray-900">
+                    <strong><u>{REFUND_POLICY.noExceptionsLine}</u></strong>
+                  </p>
+                )}
               </div>
             ))}
             <p className="text-xs text-gray-500">

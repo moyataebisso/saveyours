@@ -81,7 +81,11 @@ export default function PoliciesPage() {
 
           <h3 className="font-semibold text-lg mb-3">Contact</h3>
           <p className="text-gray-600">
-            For cancellations or rescheduling, please email{' '}
+            To reschedule, use the link in your confirmation email or visit{' '}
+            <a href="/reschedule" className="text-primary-600 hover:underline">
+              saveyours.net/reschedule
+            </a>
+            . For cancellations or other questions, email{' '}
             <a href={`mailto:${REFUND_POLICY.contactEmail}`} className="text-primary-600 hover:underline">
               {REFUND_POLICY.contactEmail}
             </a>

@@ -311,7 +311,7 @@ function CheckoutForm({ sessions, totalAmount, paymentIntentId, onPaymentIntentR
             required
           />
           <span className="text-sm text-gray-700 select-none">
-            I have read the refund policy above and agree to the{' '}
+            I have read and agree to the{' '}
             <a
               href="/policies"
               target="_blank"
@@ -319,7 +319,7 @@ function CheckoutForm({ sessions, totalAmount, paymentIntentId, onPaymentIntentR
               className="text-[#CC2936] underline hover:opacity-80 font-medium"
               onClick={(e) => e.stopPropagation()}
             >
-              Terms and Conditions
+              Cancellation, Refund &amp; Rescheduling Policy
             </a>
             .
           </span>

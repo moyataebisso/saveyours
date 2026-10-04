@@ -7,7 +7,11 @@
 // certification records after a card expires. Default: two years past
 // expiry (i.e., four years total, since Red Cross cards are 2-year).
 // Meea: change this string when you settle on a policy.
-export const RETENTION_PERIOD = 'two years past certification expiry'
+//
+// Reads as "...for ${RETENTION_PERIOD} after your certification expires" in
+// the Retention paragraph below, so the value is just the duration — do not
+// re-include the words "after your certification expires".
+export const RETENTION_PERIOD = 'two years'
 
 // PLACEHOLDER — DELETION_CONTACT_EMAIL: where deletion and access
 // requests are directed. Default: info@saveyours.net. Meea: change if a
@@ -16,7 +20,7 @@ export const DELETION_CONTACT_EMAIL = 'info@saveyours.net'
 
 // Effective date shown at the top of the policy. Update when the copy
 // materially changes.
-export const PRIVACY_EFFECTIVE_DATE = 'August 14, 2026'
+export const PRIVACY_EFFECTIVE_DATE = 'October 4, 2026'
 
 export interface PrivacySection {
   heading: string
@@ -40,7 +44,7 @@ export const PRIVACY_POLICY: {
         'When you register for a class: your name, email address, phone number, and the details of the class you\'re registering for.',
         'When you contact us: your name, email address, phone number, and whatever you tell us in your message.',
         'When you pay: your payment is processed by Stripe. Card numbers never touch our systems and we do not store them. We receive only a confirmation that payment succeeded and the amount.',
-        'When you visit our site, we collect basic analytics about which pages are viewed. This helps us understand what people are looking for.',
+        'When you visit our site, our hosting provider collects basic page analytics (which pages are viewed and roughly where visitors came from). This helps us understand what people are looking for.',
       ],
     },
     {
@@ -49,7 +53,6 @@ export const PRIVACY_POLICY: {
         'To register you for the class you selected',
         'To send your confirmation and your online course instructions',
         'To issue your certification',
-        'To remind you before your certification expires',
         'To answer your questions when you contact us',
       ],
     },
@@ -67,8 +70,8 @@ export const PRIVACY_POLICY: {
       bullets: [
         'Stripe — payment processing',
         'Supabase — database hosting',
-        'Vercel — website hosting',
-        'Google Analytics — website usage statistics',
+        'Vercel — website hosting and basic page analytics',
+        'Google Workspace (Gmail) — email delivery for confirmations and notifications',
       ],
     },
     {

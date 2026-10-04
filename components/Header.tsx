@@ -66,6 +66,7 @@ export default function Header() {
     { href: '/classes', label: 'Classes' },
     { href: '/about', label: 'About' },
     { href: '/faq', label: 'FAQ' },
+    { href: '/policies', label: 'Policies' },
     { href: '/contact', label: 'Contact' },
   ];
 
@@ -88,12 +89,15 @@ export default function Header() {
             />
           </Link>
 
-          <div className="hidden md:flex items-center space-x-6">
+          {/* Six nav items at the common 1024/1280px breakpoints — fine with
+              a slightly tighter spacing (space-x-4 at md, space-x-6 at lg)
+              instead of dropping any link. */}
+          <div className="hidden md:flex items-center space-x-4 lg:space-x-6">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className={`font-medium text-sm transition-colors hover:text-primary-600 ${
+                className={`font-medium text-sm transition-colors hover:text-primary-600 whitespace-nowrap ${
                   pathname === link.href ? 'text-primary-600' : 'text-gray-700'
                 }`}
               >

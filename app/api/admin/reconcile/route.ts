@@ -287,12 +287,16 @@ export async function POST(req: NextRequest) {
         }
 
         // 2. Confirmation email — always, regardless of voucher outcome
-        const confResult = await sendEnrollmentConfirmation(email, {
-          name,
-          className,
-          date: sessionDate,
-          time: preFormattedTime,
-        })
+        const confResult = await sendEnrollmentConfirmation(
+          email,
+          {
+            name,
+            className,
+            date: sessionDate,
+            time: preFormattedTime,
+          },
+          { enrollmentId: enrollment.id }
+        )
         if (confResult?.success) {
           notification.confirmationSent = true
         } else {

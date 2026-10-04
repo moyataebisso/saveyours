@@ -1,5 +1,28 @@
 import nodemailer from 'nodemailer'
 import { BLENDED_EXPLAINER_SENTENCES } from './blended-copy'
+import { signRescheduleToken } from './reschedule'
+
+// Base URL for links in outgoing emails. Falls back to the production site
+// so dev runs without NEXT_PUBLIC_APP_URL still produce clickable links in
+// test emails rather than http://undefined.
+function appBaseUrl(): string {
+  return (process.env.NEXT_PUBLIC_APP_URL || 'https://saveyours.net').replace(/\/+$/, '')
+}
+
+// Build the "Need to reschedule?" link for the confirmation email. Signed
+// token-URL is scoped to a single enrollment and expires in 7 days. If the
+// signing secret is missing we silently return null — the email still sends,
+// just without the link, which is the safe degradation.
+function buildRescheduleLink(enrollmentId: string | undefined): string | null {
+  if (!enrollmentId) return null
+  try {
+    const token = signRescheduleToken(enrollmentId)
+    return `${appBaseUrl()}/reschedule?token=${encodeURIComponent(token)}`
+  } catch (err) {
+    console.error('[EMAIL] Failed to sign reschedule token — sending without link:', err)
+    return null
+  }
+}
 
 // Shared HTML escaper for every email template in the repo. Any user-supplied
 // or DB-supplied value interpolated into an email body must go through this —
@@ -48,8 +71,13 @@ export async function sendEnrollmentConfirmation(
     date: string
     time: string
     location?: string
-  }
+  },
+  // Optional. When present, the email includes a signed self-serve
+  // reschedule link scoped to this enrollment. Omitted for the webhook/
+  // fallback path when we don't yet have the row id to hand.
+  options?: { enrollmentId?: string }
 ) {
+  const rescheduleUrl = buildRescheduleLink(options?.enrollmentId)
   const formattedDate = new Date(enrollmentDetails.date).toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
@@ -122,6 +150,12 @@ export async function sendEnrollmentConfirmation(
 
           <p><strong>Questions or Need to Reschedule?</strong><br>
           Please refer to our <a href="https://saveyours.net/policies" style="color: #DC2626; text-decoration: underline;">policies page</a> for information about cancellations, rescheduling, and refunds. If you need to cancel or reschedule, please email us at <a href="mailto:info@saveyours.net" style="color: #DC2626;">info@saveyours.net</a> at least 24 hours before your scheduled class.</p>
+          ${
+            rescheduleUrl
+              ? `<p style="margin-top:12px;"><strong>Need to reschedule?</strong><br>
+          You can move to another date in the same class, up to 24 hours before your class starts, for a 50% rescheduling fee: <a href="${escapeHtml(rescheduleUrl)}" style="color: #DC2626; text-decoration: underline;">Reschedule this class</a>.</p>`
+              : ''
+          }
           
           <div class="footer">
             <p>Questions? Contact us at <a href="mailto:info@saveyours.net">info@saveyours.net</a></p>

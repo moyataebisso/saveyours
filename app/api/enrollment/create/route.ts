@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
     }
     const existingSessionIds = new Set((existingByPi ?? []).map(e => e.session_id))
 
-    const enrolledClasses: { className: string; date: string; time: string }[] = []
+    const enrolledClasses: { className: string; date: string; time: string; enrollmentId: string }[] = []
     let overflowCount = 0
 
     for (const sid of ids) {
@@ -244,6 +244,7 @@ export async function POST(req: NextRequest) {
         className: session.class.name,
         date: session.date,
         time: `${formatTime(session.start_time)} - ${formatTime(session.end_time)}`,
+        enrollmentId: result.enrollment_id ?? '',
       })
 
       // Assign and send the voucher email for this session. Voucher failures
@@ -303,12 +304,16 @@ export async function POST(req: NextRequest) {
           emailPassSet: !!process.env.EMAIL_PASS,
           emailHostSet: !!process.env.EMAIL_HOST,
         })
-        const result = await sendEnrollmentConfirmation(email, {
-          name,
-          className: enrolledClasses[0].className,
-          date: enrolledClasses[0].date,
-          time: enrolledClasses[0].time,
-        })
+        const result = await sendEnrollmentConfirmation(
+          email,
+          {
+            name,
+            className: enrolledClasses[0].className,
+            date: enrolledClasses[0].date,
+            time: enrolledClasses[0].time,
+          },
+          { enrollmentId: enrolledClasses[0].enrollmentId }
+        )
         if (!result?.success) {
           const err = (result as { error?: unknown })?.error as
             | { message?: string; code?: string; command?: string; response?: string; responseCode?: number; stack?: string }

@@ -35,7 +35,7 @@ export default function AdminDashboard() {
   const [loginError, setLoginError] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'sessions' | 'enrollments' | 'inquiries'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'sessions' | 'enrollments' | 'inquiries' | 'reschedules'>('overview');
   const [enrollmentFilter, setEnrollmentFilter] = useState<'active' | 'completed' | 'cancelled' | 'all'>('active');
   const [sessionFilter, setSessionFilter] = useState<'upcoming' | 'past' | 'cancelled' | 'all'>('upcoming');
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
@@ -83,6 +83,20 @@ export default function AdminDashboard() {
     } | null;
   }>>([]);
   const [resolvingOverflow, setResolvingOverflow] = useState<string | null>(null);
+  const [reschedules, setReschedules] = useState<Array<{
+    id: string;
+    enrollment_id: string;
+    from_session_id: string;
+    to_session_id: string;
+    fee_amount: number | null;
+    status: string;
+    created_at: string;
+    completed_at: string | null;
+    stripe_payment_intent_id: string | null;
+    enrollment?: { guest_name?: string | null; guest_email?: string | null } | null;
+    from_session?: { date?: string; start_time?: string; class?: { name?: string } | null } | null;
+    to_session?: { date?: string; start_time?: string; class?: { name?: string } | null } | null;
+  }>>([]);
 
   // Session lives in an HttpOnly cookie set by /api/admin/login. This flag is
   // a non-authoritative UI hint only; the real auth check is /api/admin/session,
@@ -213,6 +227,21 @@ export default function AdminDashboard() {
       } catch (ovErr) {
         console.error('[ADMIN] Failed to load capacity overflows:', ovErr);
         setOverflows([]);
+      }
+      // Reschedules — load alongside overflows. The badge on enrollment rows
+      // and the Reschedules tab both read from this list, so a failure here
+      // only hides the two surfaces, not the rest of the dashboard.
+      try {
+        const rsRes = await fetch('/api/admin/reschedules', { cache: 'no-store' });
+        if (rsRes.ok) {
+          const rsData = await rsRes.json();
+          setReschedules(Array.isArray(rsData.reschedules) ? rsData.reschedules : []);
+        } else {
+          setReschedules([]);
+        }
+      } catch (rsErr) {
+        console.error('[ADMIN] Failed to load reschedules:', rsErr);
+        setReschedules([]);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -657,7 +686,7 @@ export default function AdminDashboard() {
         {/* Tabs */}
         <div className="bg-white rounded-lg shadow">
           <div className="border-b flex">
-            {(['overview', 'sessions', 'enrollments', 'inquiries'] as const).map(tab => (
+            {(['overview', 'sessions', 'enrollments', 'inquiries', 'reschedules'] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -967,6 +996,21 @@ export default function AdminDashboard() {
                                       Class cancelled
                                     </span>
                                   )}
+                                  {(() => {
+                                    // Show the most-recent completed reschedule for this
+                                    // enrollment, if any — matches the DB function's model
+                                    // where multiple reschedules per enrollment are allowed
+                                    // (it swaps the seat, not the row id).
+                                    const rr = reschedules.find(
+                                      (r) => r.enrollment_id === enrollment.id && r.status === 'completed'
+                                    );
+                                    if (!rr?.from_session?.date) return null;
+                                    return (
+                                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                        Rescheduled from {new Date(rr.from_session.date + 'T00:00:00').toLocaleDateString()}
+                                      </span>
+                                    );
+                                  })()}
                                 </div>
                               </td>
                               <td className="px-4 py-2">
@@ -1102,6 +1146,78 @@ export default function AdminDashboard() {
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {activeTab === 'reschedules' && (
+              <div>
+                <h2 className="text-xl font-semibold mb-4">Reschedules</h2>
+                {reschedules.length === 0 ? (
+                  <p className="text-gray-500 italic">No reschedule requests yet.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-2 text-left">Date</th>
+                          <th className="px-4 py-2 text-left">Student</th>
+                          <th className="px-4 py-2 text-left">From → To</th>
+                          <th className="px-4 py-2 text-left">Fee</th>
+                          <th className="px-4 py-2 text-left">Status</th>
+                          <th className="px-4 py-2 text-left">Payment</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reschedules.map((r) => (
+                          <tr key={r.id} className="border-b align-top">
+                            <td className="px-4 py-2">
+                              {new Date(r.created_at).toLocaleDateString()}
+                              <br />
+                              <span className="text-xs text-gray-500">
+                                {new Date(r.created_at).toLocaleTimeString()}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2">
+                              <div>{r.enrollment?.guest_name || <span className="text-gray-400 italic">Unknown</span>}</div>
+                              <div className="text-xs text-gray-500">{r.enrollment?.guest_email}</div>
+                            </td>
+                            <td className="px-4 py-2 text-sm">
+                              {r.from_session?.date
+                                ? new Date(r.from_session.date + 'T00:00:00').toLocaleDateString()
+                                : <span className="text-gray-400 italic">?</span>}{' '}
+                              →{' '}
+                              {r.to_session?.date
+                                ? new Date(r.to_session.date + 'T00:00:00').toLocaleDateString()
+                                : <span className="text-gray-400 italic">?</span>}
+                              {r.to_session?.class?.name && (
+                                <div className="text-xs text-gray-500">{r.to_session.class.name}</div>
+                              )}
+                            </td>
+                            <td className="px-4 py-2">
+                              ${(Number(r.fee_amount) || 0).toFixed(2)}
+                            </td>
+                            <td className="px-4 py-2">
+                              <span className={`px-2 py-1 rounded text-xs ${
+                                r.status === 'completed'
+                                  ? 'bg-green-100 text-green-800'
+                                  : r.status === 'failed_full'
+                                  ? 'bg-red-100 text-red-800'
+                                  : r.status === 'processing'
+                                  ? 'bg-blue-100 text-blue-800'
+                                  : 'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                {r.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2 text-xs text-gray-700">
+                              {r.stripe_payment_intent_id ? <code>{r.stripe_payment_intent_id}</code> : <span className="text-gray-400">—</span>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
           </div>

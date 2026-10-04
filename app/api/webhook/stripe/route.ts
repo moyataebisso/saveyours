@@ -3,6 +3,7 @@ import { stripe } from '@/lib/stripe-server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEnrollmentConfirmation, sendVoucherEmail, sendAdminAlert, escapeHtml } from '@/lib/email'
 import { isSessionFullError } from '@/lib/capacity'
+import { completeReschedule } from '@/lib/reschedule-complete'
 import Stripe from 'stripe'
 
 function formatTime(time: string): string {
@@ -94,9 +95,36 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: errorMessage }, { status: 400 })
   }
 
+  // Reschedule flow is driven by Checkout Sessions, which also fire
+  // payment_intent.succeeded on their own PI. We tag that PI with
+  // metadata.type='reschedule' so the enrollment path below skips it
+  // entirely — otherwise the webhook would try to create an enrollment
+  // from the reschedule-fee charge.
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object as Stripe.Checkout.Session
+    const type = session.metadata?.type
+    if (type === 'reschedule') {
+      const outcome = await completeReschedule(session.id).catch((err) => {
+        console.error('[WEBHOOK] completeReschedule threw:', err)
+        return null
+      })
+      console.log('[WEBHOOK] Reschedule completion outcome:', { sessionId: session.id, outcome })
+    }
+    // Non-reschedule checkout sessions are not something we create today —
+    // if we add them later this branch can be extended. Fall through.
+    return NextResponse.json({ received: true })
+  }
+
   if (event.type === 'payment_intent.succeeded') {
     const paymentIntent = event.data.object as Stripe.PaymentIntent
     const metadata = paymentIntent.metadata
+
+    // Reschedule fee PIs are handled by checkout.session.completed above.
+    // Never run the enrollment-creation logic on them.
+    if (metadata?.type === 'reschedule') {
+      console.log('[WEBHOOK] Skipping payment_intent.succeeded for reschedule PI:', paymentIntent.id)
+      return NextResponse.json({ received: true })
+    }
 
     const name = metadata.name || metadata.customer_name || 'Unknown - check Stripe'
     // Lowercase to match how /api/enrollment/create stores it — keeps
@@ -159,7 +187,7 @@ export async function POST(req: NextRequest) {
     //
     // Tracking which sessions the webhook CREATED (vs. merely confirmed) lets
     // us avoid sending a duplicate confirmation email in the happy path.
-    const createdByWebhook: { className: string; date: string; time: string }[] = []
+    const createdByWebhook: { className: string; date: string; time: string; enrollmentId: string }[] = []
 
     for (const sessionId of sessionIds) {
       const { data: session } = await supabaseAdmin
@@ -257,6 +285,7 @@ export async function POST(req: NextRequest) {
           className: session.class.name,
           date: session.date,
           time: `${formatTime(session.start_time)} - ${formatTime(session.end_time)}`,
+          enrollmentId: result.enrollment_id ?? '',
         });
 
         // Fallback voucher assignment + email.
@@ -311,12 +340,16 @@ export async function POST(req: NextRequest) {
     // (i.e., the checkout flow failed). In the happy path, the checkout route
     // has already sent this email and createdByWebhook is empty.
     if (createdByWebhook.length > 0) {
-      await sendEnrollmentConfirmation(email, {
-        name,
-        className: createdByWebhook[0].className,
-        date: createdByWebhook[0].date,
-        time: createdByWebhook[0].time,
-      });
+      await sendEnrollmentConfirmation(
+        email,
+        {
+          name,
+          className: createdByWebhook[0].className,
+          date: createdByWebhook[0].date,
+          time: createdByWebhook[0].time,
+        },
+        { enrollmentId: createdByWebhook[0].enrollmentId }
+      );
     }
   }
 

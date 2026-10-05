@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { verifyRescheduleToken } from '@/lib/reschedule'
 import { RescheduleRequestLinkForm } from './request-link-form'
 import { ReschedulePickerClient } from './picker-client'
@@ -34,11 +35,40 @@ export default async function ReschedulePage({
             Enter the email you booked with. If we find a matching upcoming class we&rsquo;ll email you a
             link to pick a new date.
           </p>
+
+          {/* Policy points — the same three bullets shown on the homepage
+              callout and the T&C. Rendered ABOVE the form so a student sees
+              the rules before they type their email. Keep this card compact;
+              the full policy sits one click away via the link below. */}
+          <section
+            className="mb-6 rounded-lg border border-gray-200 bg-white p-5 sm:p-6"
+            aria-label="Reschedule policy summary"
+          >
+            <h2 className="text-base sm:text-lg font-semibold text-[#1B2A4A] mb-3">
+              Before you reschedule
+            </h2>
+            <ul className="space-y-2 text-gray-800 text-sm sm:text-base">
+              <li className="flex items-start gap-2">
+                <span className="text-primary-600 mt-0.5" aria-hidden="true">•</span>
+                <span>At least 24 hours before your class</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-primary-600 mt-0.5" aria-hidden="true">•</span>
+                <span>50% rescheduling fee of your original purchase</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-primary-600 mt-0.5" aria-hidden="true">•</span>
+                <span>Move to another date of the same class</span>
+              </li>
+            </ul>
+            <p className="mt-3 text-sm">
+              <Link href="/policies" className="text-primary-600 hover:underline">
+                View full policy
+              </Link>
+            </p>
+          </section>
+
           <RescheduleRequestLinkForm />
-          <p className="text-sm text-gray-600 mt-6">
-            You may reschedule to another date in the same class by paying a fee of 50% of your
-            original purchase. Rescheduling is not available within 24 hours of your class start time.
-          </p>
         </div>
       </main>
     )

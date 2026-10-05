@@ -64,11 +64,22 @@ export default function Header() {
   const navLinks = [
     { href: '/', label: 'Home' },
     { href: '/classes', label: 'Classes' },
+    { href: '/reschedule', label: 'Reschedule' },
     { href: '/about', label: 'About' },
     { href: '/faq', label: 'FAQ' },
     { href: '/policies', label: 'Policies' },
     { href: '/contact', label: 'Contact' },
   ];
+
+  // Active-state helper — exact match for most links, prefix match for
+  // /reschedule so the token page (/reschedule?token=…) and the success page
+  // (/reschedule/success) both light the nav item red.
+  const isActive = (href: string) => {
+    if (!pathname) return false;
+    if (href === '/') return pathname === '/';
+    if (href === '/reschedule') return pathname === '/reschedule' || pathname.startsWith('/reschedule/');
+    return pathname === href;
+  };
 
   return (
     <header className={`sticky top-0 z-50 transition-all duration-300 ${
@@ -89,16 +100,17 @@ export default function Header() {
             />
           </Link>
 
-          {/* Six nav items at the common 1024/1280px breakpoints — fine with
-              a slightly tighter spacing (space-x-4 at md, space-x-6 at lg)
-              instead of dropping any link. */}
-          <div className="hidden md:flex items-center space-x-4 lg:space-x-6">
+          {/* Seven nav items (plus optional My Classes / Admin) at the common
+              1024/1280px breakpoints — tighter spacing at md (space-x-3) then
+              a little more room at lg (space-x-5) keeps everything on one
+              line without dropping links. */}
+          <div className="hidden md:flex items-center space-x-3 lg:space-x-5">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
                 className={`font-medium text-sm transition-colors hover:text-primary-600 whitespace-nowrap ${
-                  pathname === link.href ? 'text-primary-600' : 'text-gray-700'
+                  isActive(link.href) ? 'text-primary-600' : 'text-gray-700'
                 }`}
               >
                 {link.label}
@@ -107,7 +119,7 @@ export default function Header() {
             {(userEmail || isAdmin) && (
               <Link
                 href="/dashboard"
-                className={`font-medium text-sm transition-colors hover:text-primary-600 ${
+                className={`font-medium text-sm transition-colors hover:text-primary-600 whitespace-nowrap ${
                   pathname === '/dashboard' ? 'text-primary-600' : 'text-gray-700'
                 }`}
               >
@@ -186,7 +198,7 @@ export default function Header() {
                   href={link.href}
                   onClick={() => setIsMenuOpen(false)}
                   className={`font-medium py-2 px-4 rounded-lg transition-colors hover:bg-gray-100/80 ${
-                    pathname === link.href ? 'text-primary-600 bg-primary-50/80' : 'text-gray-700'
+                    isActive(link.href) ? 'text-primary-600 bg-primary-50/80' : 'text-gray-700'
                   }`}
                 >
                   {link.label}

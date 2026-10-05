@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Heart, Zap, Home, Target, Award, Users, MapPin, GraduationCap, Activity, CheckCircle, Clock, Play, AlertCircle } from 'lucide-react';
+import { Heart, Zap, Home, Target, Award, Users, MapPin, GraduationCap, Activity, CheckCircle, Clock, Play, AlertCircle, CalendarClock } from 'lucide-react';
 import { CLASS_INFO, getClassBySlug } from '@/lib/class-info';
 
 // title.absolute prevents root layout's " | SaveYours" template from doubling
@@ -269,6 +269,60 @@ export default function HomePage() {
                   <span>→</span>
                 </Link>
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Self-serve Reschedule promo — sits directly below the Our Training
+          Services cards so a returning student scanning the home page can
+          reach /reschedule in one click. Card styling (bg-white section +
+          card inner) matches the existing section patterns used above. */}
+      <section className="py-16 bg-white">
+        <div className="container-custom">
+          <div className="max-w-3xl mx-auto card p-8 sm:p-10">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="w-14 h-14 bg-primary-50 rounded-full flex items-center justify-center shrink-0">
+                <CalendarClock className="w-7 h-7 text-primary-600" />
+              </div>
+              <div>
+                <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-1">
+                  Need to change your class date?
+                </h2>
+                <p className="text-gray-600">
+                  Reschedule online in a couple of minutes — no need to email us.
+                </p>
+              </div>
+            </div>
+
+            <ul className="space-y-2 mb-6">
+              <li className="flex items-start gap-2 text-gray-800">
+                <CheckCircle className="w-5 h-5 text-primary-600 mt-0.5 shrink-0" aria-hidden="true" />
+                <span>At least 24 hours before your class</span>
+              </li>
+              <li className="flex items-start gap-2 text-gray-800">
+                <CheckCircle className="w-5 h-5 text-primary-600 mt-0.5 shrink-0" aria-hidden="true" />
+                <span>50% rescheduling fee of your original purchase</span>
+              </li>
+              <li className="flex items-start gap-2 text-gray-800">
+                <CheckCircle className="w-5 h-5 text-primary-600 mt-0.5 shrink-0" aria-hidden="true" />
+                <span>Move to another date of the same class</span>
+              </li>
+            </ul>
+
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <Link
+                href="/reschedule"
+                className="btn btn-primary inline-flex items-center justify-center gap-2 text-base px-6 py-3"
+              >
+                Reschedule my class
+              </Link>
+              <Link
+                href="/policies"
+                className="text-sm text-primary-600 hover:underline"
+              >
+                View full policy
+              </Link>
             </div>
           </div>
         </div>

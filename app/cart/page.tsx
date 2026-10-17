@@ -434,8 +434,23 @@ export default function CartPage() {
     initializeStripe();
 
     // Get cart items from localStorage
-    const cart = JSON.parse(localStorage.getItem('cart') || '[]') as ClassSessionWithClass[];
-    
+    const rawCart = JSON.parse(localStorage.getItem('cart') || '[]') as ClassSessionWithClass[];
+
+    // Prune past-dated items on load. The server rejects the whole cart on
+    // the first past date (/api/payment/create-intent), so a stale item
+    // from a prior visit would block today's purchase with an error that
+    // names the stale date — exactly the "You cannot register for 10/14"
+    // bug reported for a 10/17 attempt. Compare on YYYY-MM-DD in the
+    // business's local timezone so a late-evening Chicago session on
+    // today's date is not pruned by a UTC-shifted comparison.
+    const chicagoToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(new Date());
+    const cart = rawCart.filter(item => (item.date ?? '') >= chicagoToday);
+    if (cart.length !== rawCart.length) {
+      localStorage.setItem('cart', JSON.stringify(cart));
+      window.dispatchEvent(new Event('storage'));
+      toast.info('A class in your cart has already passed and was removed.');
+    }
+
     if (cart.length === 0) {
       router.push('/classes');
       return;

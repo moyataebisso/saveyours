@@ -36,3 +36,25 @@ export function spotsLeft(maxCapacity: number, seatsTaken: number): number {
 export function isSessionFull(maxCapacity: number, seatsTaken: number): boolean {
   return spotsLeft(maxCapacity, seatsTaken) <= 0
 }
+
+// True when an error raised by a Supabase insert or RPC looks like the
+// Postgres unique-constraint violation (SQLSTATE 23505). Covers both
+// error.code === '23505' and the message-wrapped form Supabase sometimes
+// surfaces, plus the RPC return-shape where our stored function reports
+// the duplicate as a non-success result.
+export function isDuplicateEnrollmentError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false
+  const e = err as { code?: unknown; message?: unknown; error?: unknown }
+  if (e.code === '23505') return true
+  if (typeof e.message === 'string' && (e.message.includes('23505') || e.message.includes('duplicate key value'))) {
+    return true
+  }
+  // RPC return shape: { success: false, error: '23505' | 'DUPLICATE' | ... }
+  if (typeof e.error === 'string') {
+    const s = e.error.toLowerCase()
+    if (s === '23505' || s === 'duplicate' || s === 'enrollment_exists' || s.includes('duplicate')) {
+      return true
+    }
+  }
+  return false
+}

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { stripe } from '@/lib/stripe-server'
 import { sendEnrollmentConfirmation, sendVoucherEmail, sendAdminAlert, escapeHtml } from '@/lib/email'
-import { isSessionFullError } from '@/lib/capacity'
+import { isSessionFullError, isDuplicateEnrollmentError } from '@/lib/capacity'
 
 function formatTime(time: string): string {
   if (!time) return '';
@@ -171,6 +171,28 @@ export async function POST(req: NextRequest) {
 
       const isFullFromRpc = result && !result.success && result.error === 'CLASS_FULL'
       const isFullFromTrigger = !!rpcError && isSessionFullError(rpcError)
+
+      // Duplicate detection: the DB has UNIQUE(stripe_payment_intent_id,
+      // session_id, lower(guest_email)) on live rows. If the webhook
+      // fallback and this success-flow both race through their pre-fetch
+      // and both call the RPC, Postgres rejects the second insert with
+      // SQLSTATE 23505. Treat it as "the other path got here first" —
+      // find the row the winner wrote and move on. Never surface an
+      // error to the customer: they paid, the seat exists.
+      const isDupFromRpc = !!result && !result.success && isDuplicateEnrollmentError(result)
+      const isDupFromDb = !!rpcError && isDuplicateEnrollmentError(rpcError)
+
+      if (isDupFromRpc || isDupFromDb) {
+        console.warn('[ENROLLMENT] Duplicate insert raced — the other path owns this row:', {
+          sid,
+          email,
+          paymentIntentId: paymentIntent.id,
+          source: isDupFromDb ? 'db' : 'rpc',
+        })
+        // Mirror the pre-check branch: skip voucher assignment and the
+        // confirmation email entirely. The winning path handles both.
+        continue
+      }
 
       if (isFullFromRpc || isFullFromTrigger) {
         console.warn('[ENROLLMENT] Session full — recording overflow:', {

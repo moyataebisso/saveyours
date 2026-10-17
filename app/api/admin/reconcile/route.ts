@@ -3,7 +3,7 @@ import { stripe } from '@/lib/stripe-server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEnrollmentConfirmation, sendVoucherEmail } from '@/lib/email'
 import { requireAdmin, AdminUnauthorizedError } from '@/lib/admin-auth'
-import { isSessionFullError } from '@/lib/capacity'
+import { isSessionFullError, isDuplicateEnrollmentError } from '@/lib/capacity'
 
 function unauthorized() {
   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -186,6 +186,16 @@ export async function POST(req: NextRequest) {
         .single()
 
       if (error) {
+        // Another path (success-flow or webhook) raced us and already
+        // created this enrollment. Postgres surfaces this as SQLSTATE
+        // 23505 against the live-row unique index. Mirror the pre-check
+        // branch above: report it as "already exists", skip voucher +
+        // emails, continue. CRITICAL: never send voucher/confirmation
+        // emails here — the winning path has already sent them.
+        if (isDuplicateEnrollmentError(error)) {
+          errors.push(`Enrollment already exists for session ${sessionId}`)
+          continue
+        }
         // The DB capacity trigger refuses the insert when the class is full.
         // Report it as a dedicated error so the modal can show the "move or
         // refund" message rather than a generic "Failed to create enrollment".

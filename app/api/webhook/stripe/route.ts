@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe-server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { sendEnrollmentConfirmation, sendVoucherEmail, sendAdminAlert, escapeHtml } from '@/lib/email'
-import { isSessionFullError } from '@/lib/capacity'
+import { isSessionFullError, isDuplicateEnrollmentError } from '@/lib/capacity'
 import { completeReschedule } from '@/lib/reschedule-complete'
 import Stripe from 'stripe'
 
@@ -240,6 +240,48 @@ export async function POST(req: NextRequest) {
 
       const isFullFromRpc = result && !result.success && result.error === 'CLASS_FULL'
       const isFullFromTrigger = !!rpcError && isSessionFullError(rpcError)
+
+      // The success-flow (app/api/enrollment/create) may have landed the
+      // row between our pre-fetch and this RPC. The DB rejects the second
+      // insert with SQLSTATE 23505 — treat it as idempotent, flip the
+      // existing row to 'paid' so this PI is accounted for, and move on.
+      // CRITICAL: we must return 200 for this webhook so Stripe does not
+      // retry — the `continue` below falls through to the normal 200.
+      const isDupFromRpc = !!result && !result.success && isDuplicateEnrollmentError(result)
+      const isDupFromDb = !!rpcError && isDuplicateEnrollmentError(rpcError)
+
+      if (isDupFromRpc || isDupFromDb) {
+        console.warn('[WEBHOOK] Duplicate insert raced — the success-flow owns this row:', {
+          sessionId,
+          email,
+          paymentIntentId: paymentIntent.id,
+          source: isDupFromDb ? 'db' : 'rpc',
+        })
+        // Find the row the winner wrote and make sure it is marked paid.
+        // The unique index is per (PI, session_id, lower(email)), so a
+        // (PI, session_id) lookup is sufficient — same PI implies same
+        // customer email in this flow.
+        const { data: winnerRows } = await supabaseAdmin
+          .from('enrollments')
+          .select('id, payment_status, guest_email')
+          .eq('stripe_payment_intent_id', paymentIntent.id)
+          .eq('session_id', sessionId)
+        const winner = (winnerRows ?? []).find(
+          r => (r.guest_email ?? '').toLowerCase() === email
+        ) ?? (winnerRows ?? [])[0] ?? null
+        if (winner && winner.payment_status !== 'paid') {
+          const { error: statusError } = await supabaseAdmin
+            .from('enrollments')
+            .update({ payment_status: 'paid' })
+            .eq('id', winner.id)
+          if (statusError) {
+            console.error('[WEBHOOK] Failed to flip raced enrollment to paid:', statusError)
+          }
+        }
+        // Do NOT push to createdByWebhook — the success-flow has already
+        // assigned the voucher and sent the confirmation email.
+        continue
+      }
 
       if (isFullFromRpc || isFullFromTrigger) {
         console.warn(`[WEBHOOK] Session full — recording overflow for ${sessionId}, ${email}`);

@@ -5,6 +5,13 @@ import { ADMIN_SESSIONS_LIMIT } from '@/lib/admin-limits'
 
 // GET /api/admin/sessions
 // Optional: ?status=scheduled  or  ?status=scheduled,full
+// Optional: ?includePast=1  (default 0 — past + archived sessions are hidden)
+//
+// Default behavior hides past and archived rows so surfaces that drive an
+// action against a session (Manage Vouchers dropdown) can't present a
+// class that already happened. The Admin Sessions tab, which has its own
+// Past/Cancelled filter buttons and needs the full list, must pass
+// ?includePast=1 to see historical rows.
 export function GET(req: NextRequest) {
   return guarded(req, async () => {
     const url = new URL(req.url)
@@ -16,11 +23,20 @@ export function GET(req: NextRequest) {
           .filter((s) => ['scheduled', 'full', 'cancelled'].includes(s))
       : null
 
+    const includePast = url.searchParams.get('includePast') === '1'
+
     let query = supabaseAdmin
       .from('class_sessions')
       .select('*, class:classes(*)')
       .order('date', { ascending: true })
       .limit(ADMIN_SESSIONS_LIMIT)
+
+    if (!includePast) {
+      // America/Chicago, not UTC — a late-evening session on today's date
+      // must not fall out of the result set because UTC has rolled over.
+      const chicagoToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(new Date())
+      query = query.gte('date', chicagoToday).is('archived_at', null)
+    }
 
     if (statuses && statuses.length > 0) {
       query = query.in('status', statuses)
